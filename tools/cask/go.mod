@@ -1,4 +1,4 @@
-module github.com/capitalone/cloud-custodian/tools/cask
+module github.com/cloud-custodian/cloud-custodian/tools/cask
 
 go 1.14
 
