@@ -6,13 +6,14 @@ module to test some universal tagging infrastructure not directly exposed.
 """
 import pytest
 import time
-from mock import Mock, MagicMock, call, patch
+from mock import Mock, MagicMock, call
 
-from datetime import datetime
+import datetime
 from dateutil import tz as tzutil
 
 from c7n.tags import universal_retry, coalesce_copy_user_tags, TagDelayedAction
 from c7n.exceptions import PolicyExecutionError, PolicyValidationError
+from c7n.testing import mock_datetime_now
 from c7n.utils import yaml_load
 
 from .common import BaseTest
@@ -417,10 +418,8 @@ class TagDelayedActionTest(BaseTest):
             'type': 'mark-for-op',
             'op': 'stop',
         })
-
-        with patch('c7n.tags.datetime') as mock_date:
-            mock_date.now.return_value = datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
-
+        now = datetime.datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
+        with mock_datetime_now(now, datetime):
             self.assertDictEqual(
                 action.get_config_values(),
                 {
@@ -438,10 +437,8 @@ class TagDelayedActionTest(BaseTest):
             'type': 'mark-for-op',
             'op': 'stop',
         })
-
-        with patch('c7n.tags.datetime') as mock_date:
-            mock_date.now.return_value = datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
-
+        now = datetime.datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
+        with mock_datetime_now(now, datetime):
             self.assertEqual(action.generate_timestamp(0, 0), '2020/09/03')
             self.assertEqual(action.generate_timestamp(1, 0), '2020/08/31')
             self.assertEqual(action.generate_timestamp(2, 0), '2020/09/01')
