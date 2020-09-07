@@ -4,10 +4,11 @@
 """Most tags tests within their corresponding resource tags, we use this
 module to test some universal tagging infrastructure not directly exposed.
 """
+import pytest
 import time
 from mock import Mock, MagicMock, call, patch
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil import tz as tzutil
 
 from c7n.tags import universal_retry, coalesce_copy_user_tags, TagDelayedAction
@@ -400,25 +401,16 @@ class TagDelayedActionTest(BaseTest):
 
     def manager(self):
         return Mock(action_registry={
-            'stop': 0, 'terminate':1, # only care about the keys
+            'stop': 0, 'terminate': 1,  # only care about the keys
         })
 
     def action(self, data):
         return TagDelayedAction(data, self.manager()).validate()
 
     def test_validate_requires_op(self):
-        try:
-            action = self.action({
-                'type': 'mark-for-op',
-            })
-            self.fail("op should be required")
-        except PolicyValidationError:
-            pass
-        except AssertionError:
-            # Let that fall through
-            raise
-        except Exception as e: # Any other error
-            self.fail(f"unexpected exception: {e}")
+        with pytest.raises(PolicyValidationError) as exec:
+            self.action({'type': 'mark-for-op'})
+        self.assertIn('invalid op:None', str(exec))
 
     def test_default_config_values(self):
         action = self.action({
@@ -427,14 +419,13 @@ class TagDelayedActionTest(BaseTest):
         })
 
         with patch('c7n.tags.datetime') as mock_date:
-            mock_date.now.return_value = datetime(2020,8, 30, 12, tzinfo=tzutil.UTC)
+            mock_date.now.return_value = datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
 
             self.assertDictEqual(
                 action.get_config_values(),
                 {
                     'op': 'stop',
                     'tag': 'maid_status',
-                    'msg': 'wat',
                     'action_date': '2020/09/03',
                     'msg': 'Resource does not meet policy: {op}@{action_date}',
                     'tz': 'utc',
@@ -449,7 +440,7 @@ class TagDelayedActionTest(BaseTest):
         })
 
         with patch('c7n.tags.datetime') as mock_date:
-            mock_date.now.return_value = datetime(2020,8, 30, 12, tzinfo=tzutil.UTC)
+            mock_date.now.return_value = datetime(2020, 8, 30, 12, tzinfo=tzutil.UTC)
 
             self.assertEqual(action.generate_timestamp(0, 0), '2020/09/03')
             self.assertEqual(action.generate_timestamp(1, 0), '2020/08/31')
