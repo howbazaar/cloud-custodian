@@ -5,9 +5,12 @@
 module to test some universal tagging infrastructure not directly exposed.
 """
 import time
-from mock import MagicMock, call
+from mock import Mock, MagicMock, call, patch
 
-from c7n.tags import universal_retry, coalesce_copy_user_tags
+from datetime import datetime, timedelta
+from dateutil import tz as tzutil
+
+from c7n.tags import universal_retry, coalesce_copy_user_tags, TagDelayedAction
 from c7n.exceptions import PolicyExecutionError, PolicyValidationError
 from c7n.utils import yaml_load
 
@@ -391,3 +394,65 @@ class CopyRelatedResourceTag(BaseTest):
 
         self.assertEqual(len(untagged_snaps), 1)
         self.assertTrue('Tags' not in untagged_snaps[0].keys())
+
+
+class TagDelayedActionTest(BaseTest):
+
+    def manager(self):
+        return Mock(action_registry={
+            'stop': 0, 'terminate':1, # only care about the keys
+        })
+
+    def action(self, data):
+        return TagDelayedAction(data, self.manager()).validate()
+
+    def test_validate_requires_op(self):
+        try:
+            action = self.action({
+                'type': 'mark-for-op',
+            })
+            self.fail("op should be required")
+        except PolicyValidationError:
+            pass
+        except AssertionError:
+            # Let that fall through
+            raise
+        except Exception as e: # Any other error
+            self.fail(f"unexpected exception: {e}")
+
+    def test_default_config_values(self):
+        action = self.action({
+            'type': 'mark-for-op',
+            'op': 'stop',
+        })
+
+        with patch('c7n.tags.datetime') as mock_date:
+            mock_date.now.return_value = datetime(2020,8, 30, 12, tzinfo=tzutil.UTC)
+
+            self.assertDictEqual(
+                action.get_config_values(),
+                {
+                    'op': 'stop',
+                    'tag': 'maid_status',
+                    'msg': 'wat',
+                    'action_date': '2020/09/03',
+                    'msg': 'Resource does not meet policy: {op}@{action_date}',
+                    'tz': 'utc',
+                    'days': 0,
+                    'hours': 0,
+                })
+
+    def test_generate_timestamp(self):
+        action = self.action({
+            'type': 'mark-for-op',
+            'op': 'stop',
+        })
+
+        with patch('c7n.tags.datetime') as mock_date:
+            mock_date.now.return_value = datetime(2020,8, 30, 12, tzinfo=tzutil.UTC)
+
+            self.assertEqual(action.generate_timestamp(0, 0), '2020/09/03')
+            self.assertEqual(action.generate_timestamp(1, 0), '2020/08/31')
+            self.assertEqual(action.generate_timestamp(2, 0), '2020/09/01')
+            self.assertEqual(action.generate_timestamp(0, 4), '2020/08/30 1600 UTC')
+            self.assertEqual(action.generate_timestamp(2, 4), '2020/09/01 1600 UTC')

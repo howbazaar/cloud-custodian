@@ -627,7 +627,7 @@ class TagDelayedAction(Action):
 
     def generate_timestamp(self, days, hours):
         n = datetime.now(tz=self.tz)
-        if days is None or hours is None:
+        if days == 0 and hours == 0:
             # maintains default value of days being 4 if nothing is provided
             days = 4
         action_date = (n + timedelta(days=days, hours=hours))
