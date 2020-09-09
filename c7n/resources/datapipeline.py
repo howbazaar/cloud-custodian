@@ -131,6 +131,7 @@ class MarkForOpPipeline(TagDelayedAction):
                     op: delete
                     days: 7
     """
+    # TODO: should we have a default template specified for registered types?
 
 
 @DataPipeline.action_registry.register('tag')

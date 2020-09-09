@@ -591,6 +591,7 @@ class TagDelayedAction(Action):
           actions:
             - type: mark-for-op
               op: stop
+              days: 1
     """
 
     schema = utils.type_schema(
@@ -624,6 +625,10 @@ class TagDelayedAction(Action):
             raise PolicyValidationError(
                 "Invalid timezone specified %s in %s" % (
                     self.tz, self.manager.data))
+
+        if self.data.get('hours') is None and self.data.get('days') is None:
+            self.log.warning('"hours" or "days" should be specified in the filter args')
+
         return self
 
     def generate_timestamp(self, days, hours):

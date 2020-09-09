@@ -2544,6 +2544,7 @@ class MarkBucketForOp(TagDelayedAction):
               - name: s3-encrypt
                 resource: s3
                 filters:
+                  - "tag:custodian_cleanup": absent
                   - type: missing-statement
                     statement_ids:
                       - RequiredEncryptedPutObject
@@ -2551,8 +2552,9 @@ class MarkBucketForOp(TagDelayedAction):
                   - type: mark-for-op
                     op: attach-encrypt
                     days: 7
-    """
-
+                    tag: custodian_cleanup
+     """
+    #TODO: this isn't needed right?
     schema = type_schema(
         'mark-for-op', rinherit=TagDelayedAction.schema)
 
