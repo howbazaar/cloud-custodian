@@ -2554,9 +2554,6 @@ class MarkBucketForOp(TagDelayedAction):
                     days: 7
                     tag: custodian_cleanup
      """
-    #TODO: this isn't needed right?
-    schema = type_schema(
-        'mark-for-op', rinherit=TagDelayedAction.schema)
 
 
 @actions.register('unmark')

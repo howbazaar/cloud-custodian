@@ -413,6 +413,39 @@ class TagDelayedActionTest(BaseTest):
             self.action({'type': 'mark-for-op'})
         self.assertIn('invalid op:None', str(exec))
 
+    def test_validate_msg_good(self):
+        good_messages = [
+            "something: {op}@{action_date}",
+            "something:{op}@{action_date}",
+            "something: {op}@{action_date} ",
+            # It isn't great, but acceptable.
+            ": {op}@{action_date}",
+        ]
+        for msg in good_messages:
+            self.action({
+                'type': 'mark-for-op',
+                'op': 'stop',
+                'msg': msg,
+            })
+
+    def test_validate_msg_bag(self):
+        bad_messages = [
+            "blah blah blah",
+            "{op}@{action_date}",
+            "something: {op}@{action-date}",
+            "something: {op}@{actiondate}",
+            "something: {op}@{action_date} blah",
+        ]
+        for msg in bad_messages:
+            self.assertRaises(
+                PolicyValidationError,
+                self.action,
+                {
+                    'type': 'mark-for-op',
+                    'op': 'stop',
+                    'msg': msg,
+                })
+
     def test_default_config_values(self):
         action = self.action({
             'type': 'mark-for-op',

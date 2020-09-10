@@ -19,6 +19,7 @@ from dateutil.parser import parse
 
 import itertools
 import jmespath
+import re
 import time
 
 from c7n.manager import resources as aws_resources
@@ -625,6 +626,14 @@ class TagDelayedAction(Action):
             raise PolicyValidationError(
                 "Invalid timezone specified %s in %s" % (
                     self.tz, self.manager.data))
+
+        # Ensure that the msg writes a message in a format that marked-for-op will recognize.
+        # The expectation is that the string ends with ": op@date", so a simple regex to handle
+        # whitespace should be good.
+        msg = self.data.get('msg', self.default_template)
+        if not re.fullmatch(r".*: *{op}@{action_date} *", msg):
+            raise PolicyValidationError(
+                "Invalid msg specified, must end with ': {op}@{action_date}'")
 
         if self.data.get('hours') is None and self.data.get('days') is None:
             self.log.warning('"hours" or "days" should be specified in the filter args')

@@ -149,7 +149,6 @@ class MarkForOpMessageBroker(TagDelayedAction):
               - name: mq-delete-unused
                 resource: message-broker
                 filters:
-                xxx unused?
                   - "tag:custodian_cleanup": absent
                 actions:
                   - type: mark-for-op
