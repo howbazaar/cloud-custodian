@@ -1401,7 +1401,6 @@ class MarkForOp(TagDelayedAction):
                     days: 7
     """
 
-    # TODO: is this schema and get_config_values actually needed?
     schema = type_schema(
         'mark-for-op',
         op={'type': 'string'},
@@ -1413,7 +1412,6 @@ class MarkForOp(TagDelayedAction):
         days={'type': 'number', 'minimum': 0},
         hours={'type': 'number', 'minimum': 0})
     schema_alias = False
-    # TODO: should we have a default template specified for registered types?
     default_template = (
         'AutoScaleGroup does not meet org policy: {op}@{action_date}')
 
