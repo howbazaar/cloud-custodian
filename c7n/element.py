@@ -4,10 +4,28 @@
 
 import jmespath
 
+from c7n.executor import ThreadPoolExecutor
+
 
 class Element:
     """Parent base class for filters and actions.
     """
+
+    permissions = ()
+    metrics = ()
+
+    executor_factory = ThreadPoolExecutor
+
+    schema = {'type': 'object'}
+    # schema aliases get hoisted into a jsonschema definition
+    # location, and then referenced inline.
+    schema_alias = None
+
+    def get_permissions(self):
+        return self.permissions
+
+    def validate(self):
+        return self
 
     def filter_resources(self, resources, key_expr, allowed_values=()):
         # many filters implementing a resource state transition only allow
