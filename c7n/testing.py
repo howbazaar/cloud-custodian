@@ -81,6 +81,7 @@ class CustodianTestCore:
             output_dir='null://',
             log_group='null://',
             cache=False,
+            allow_deprecations=True,
     ):
         pdata = {'policies': [data]}
         if not (config and isinstance(config, Config)):
@@ -95,6 +96,11 @@ class CustodianTestCore:
             config=config)
         # policy non schema validation is also lazy initialization
         [p.validate() for p in collection]
+        if not allow_deprecations:
+            for p in collection:
+                r = p.deprecation_report()
+                if r.has_deprecations:
+                    raise RuntimeError(f"policy {p.name} contains deprecated usage\n{r.format()}")
         return list(collection)[0]
 
     def _get_policy_config(self, **kw):

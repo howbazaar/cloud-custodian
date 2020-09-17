@@ -194,6 +194,7 @@ def validate(options):
     used_policy_names = set()
     structure = StructureParser()
     errors = []
+    found_deprecations = False
 
     for config_file in options.configs:
 
@@ -238,6 +239,17 @@ def validate(options):
                 try:
                     policy = Policy(p, null_config, Bag())
                     policy.validate()
+                    # If the policy is invalid, there isn't much point checking
+                    # for deprecated usage as there is no guarantee as to the
+                    # state of the policy.
+                    if options.check_deprecations != "skip":
+                        report = policy.deprecation_report()
+                        if report.has_deprecations:
+                            found_deprecations = True
+                            # TODO: add source_locator for the format.
+                            # TODO: consider different formats for output.
+                            log.warning("deprecated usage found in policy\n" + report.format())
+
                 except Exception as e:
                     msg = "Policy: %s is invalid: %s" % (
                         p.get('name', 'unknown'), e)
@@ -250,6 +262,8 @@ def validate(options):
         for e in errors:
             log.error("%s" % e)
     if errors:
+        sys.exit(1)
+    if found_deprecations and options.check_deprecations == "error":
         sys.exit(1)
 
 

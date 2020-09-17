@@ -21,7 +21,7 @@ from c7n.output import DEFAULT_NAMESPACE, NullBlobOutput
 from c7n.resources import load_resources
 from c7n.registry import PluginRegistry
 from c7n.provider import clouds, get_resource_class
-from c7n import utils
+from c7n import deprecated, utils
 from c7n.version import version
 
 log = logging.getLogger('c7n.policy')
@@ -241,6 +241,11 @@ class PolicyExecutionMode:
                 MetricName=m)
             values[m] = results['Datapoints']
         return values
+
+    def get_deprecations(self):
+        # The execution mode itself doesn't have a data dict, so we grab the
+        # mode part from the policy data dict itself.
+        return deprecated.check_deprecations(self, data=self.policy.data.get('mode', {}))
 
 
 class ServerlessExecutionMode(PolicyExecutionMode):
@@ -955,6 +960,7 @@ class PolicyConditions:
         return iter_filters(self.filters, block_end=block_end)
 
     def convert_deprecated(self):
+        """These deprecated attributes are now recorded as deprecated against the policy."""
         filters = []
         if 'region' in self.policy.data:
             filters.append({'region': self.policy.data['region']})
@@ -974,10 +980,23 @@ class PolicyConditions:
                 'value': self.policy.data['end']})
         return filters
 
+    def get_deprecations(self):
+        """Return any matching deprecations for the policy fields itself."""
+        deprecations = []
+        for f in self.filters:
+            deprecations.extend(f.get_deprecations())
+        return deprecations
+
 
 class Policy:
 
     log = logging.getLogger('custodian.policy')
+
+    deprecations = (
+        deprecated.field('region', 'region in condition block', '2021-06-30'),
+        deprecated.field('start', 'value filter in condition block', '2021-06-30'),
+        deprecated.field('end', 'value filter in condition block', '2021-06-30'),
+    )
 
     def __init__(self, data, options, session_factory=None):
         self.data = data
@@ -1221,3 +1240,23 @@ class Policy:
                 except Exception as e:
                     raise ValueError(
                         "Policy: %s Date/Time not parsable: %s, %s" % (policy_name, i, e))
+
+    def get_deprecations(self):
+        """Return any matching deprecations for the policy fields itself."""
+        return deprecated.check_deprecations(self, "policy")
+
+    def deprecation_report(self):
+        """Returns a deprecation report for this policy.
+        """
+        report = deprecated.Report(self.name)
+        report.policy_fields = self.get_deprecations()
+        report.conditions = self.conditions.get_deprecations()
+        report.mode = self.get_execution_mode().get_deprecations()
+
+        resource = self.resource_manager
+        report.resource = resource.get_deprecations()
+        for f in resource.filters:
+            report.filters.extend(f.get_deprecations())
+        for a in resource.actions:
+            report.actions.extend(a.get_deprecations())
+        return report

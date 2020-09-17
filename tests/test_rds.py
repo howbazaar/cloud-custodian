@@ -10,6 +10,7 @@ import re
 import time
 import uuid
 from collections import OrderedDict
+from textwrap import dedent
 
 from botocore.exceptions import ClientError
 import boto3
@@ -907,6 +908,16 @@ class RDSSnapshotTest(BaseTest):
                 "CopyTagsToSnapshot"
             ]
         )
+
+        report = p.deprecation_report()
+        self.assertTrue(report.has_deprecations)
+        # This output seems to indicate that putting a single deprecation error on
+        # one line isn't as good as an idea as it first seemed.
+        self.assertEqual(report.format(), dedent("""
+            policy 'rds-enable-snapshot-tag-copy'
+              actions: set-snapshot-copy-tags: action 'set-snapshot-copy-tags' has been deprecated (use modify-db instead with `CopyTagsToSnapshot`)
+            """)[1:-1])
+
 
     def test_rds_snapshot_copy_tags_disable(self):
         session_factory = self.replay_flight_data("test_rds_snapshot_copy_tags_disable")

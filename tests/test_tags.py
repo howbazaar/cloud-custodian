@@ -5,8 +5,10 @@
 module to test some universal tagging infrastructure not directly exposed.
 """
 import time
+from textwrap import dedent
 from mock import MagicMock, call
 
+from c7n import deprecated
 from c7n.tags import universal_retry, coalesce_copy_user_tags
 from c7n.exceptions import PolicyExecutionError, PolicyValidationError
 from c7n.utils import yaml_load
@@ -77,6 +79,35 @@ class UniversalTagTest(BaseTest):
             {"FailedResourcesMap": {"arn:abc": {"ErrorCode": "PermissionDenied"}}}
         ]
         self.assertRaises(Exception, universal_retry, method, ["arn:abc"])
+
+    def test_mark_for_op_deprecations(self):
+        policy = self.load_policy({
+                'name': 'dep-test',
+                'resource': 'ec2',
+                'actions': [{'type': 'mark-for-op', 'op': 'stop'}]})
+
+        report = policy.deprecation_report()
+        self.assertTrue(report.has_deprecations)
+        self.assertEqual(report.format(), dedent("""
+            policy 'dep-test'
+              actions:
+                mark-for-op: optional fields deprecated (one of 'hours' or 'days' must be specified)
+                mark-for-op: optional field 'tag' deprecated (must be specified)
+            """)[1:-1])
+
+    def test_unmark_deprecations(self):
+        policy = self.load_policy({
+                'name': 'dep-test',
+                'resource': 'ec2',
+                'filters': [{'tag:foo': 'exists'}],
+                'actions': [{'type': 'unmark', 'tags': ['foo']}]})
+
+        report = policy.deprecation_report()
+        self.assertTrue(report.has_deprecations)
+        self.assertEqual(report.format(), dedent("""
+            policy 'dep-test'
+              actions: remove-tag: alias 'unmark' has been deprecated
+            """)[1:-1])
 
 
 class CoalesceCopyUserTags(BaseTest):

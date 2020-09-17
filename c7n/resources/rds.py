@@ -54,7 +54,7 @@ from c7n.filters.offhours import OffHour, OnHour
 import c7n.filters.vpc as net_filters
 from c7n.manager import resources
 from c7n.query import QueryResourceManager, DescribeSource, ConfigSource, TypeInfo
-from c7n import tags
+from c7n import deprecated, tags
 from c7n.tags import universal_augment
 
 from c7n.utils import (
@@ -632,6 +632,9 @@ class CopySnapshotTags(BaseAction):
                   - type: set-snapshot-copy-tags
                     enable: True
     """
+    deprecations = (
+        deprecated.action('set-snapshot-copy-tags', "use modify-db instead with `CopyTagsToSnapshot`", '2021-06-30'),
+    )
 
     schema = type_schema(
         'set-snapshot-copy-tags',

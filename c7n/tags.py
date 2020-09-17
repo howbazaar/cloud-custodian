@@ -25,7 +25,7 @@ from c7n.actions import BaseAction as Action, AutoTagUser
 from c7n.exceptions import PolicyValidationError, PolicyExecutionError
 from c7n.filters import Filter, OPERATORS
 from c7n.filters.offhours import Time
-from c7n import utils
+from c7n import deprecated, utils
 
 DEFAULT_TAG = "maid_status"
 
@@ -369,6 +369,10 @@ class Tag(Action):
     batch_size = 25
     concurrency = 2
 
+    deprecations = (
+        deprecated.alias('mark', '2021-06-30'),
+    )
+
     schema = utils.type_schema(
         'tag', aliases=('mark',),
         tags={'type': 'object'},
@@ -439,6 +443,11 @@ class Tag(Action):
 class RemoveTag(Action):
     """Remove tags from ec2 resources.
     """
+
+    deprecations = (
+        deprecated.alias('unmark', '2021-06-30'),
+        deprecated.alias('untag', '2021-06-30'),
+    )
 
     batch_size = 100
     concurrency = 2
@@ -591,6 +600,10 @@ class TagDelayedAction(Action):
             - type: mark-for-op
               op: stop
     """
+    deprecations = (
+        deprecated.optional_fields(('hours', 'days'), '2021-06-30'),
+        deprecated.optional_field('tag', '2021-06-30'),
+    )
 
     schema = utils.type_schema(
         'mark-for-op',
