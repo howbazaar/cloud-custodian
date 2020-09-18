@@ -81,18 +81,6 @@ class Deprecation:
 
         removed_after if specified must be a string representing an ISO8601 date.
         """
-        # Question here:
-        #  to speed up initialization, should we move the datetime checking to a unit test?
-        if removed_after is not None:
-            if not isinstance(removed_after, str):
-                raise TypeError("removed_after attribute must be a string")
-            try:
-                datetime.strptime(removed_after, "%Y-%m-%d")
-            except ValueError:
-                raise TypeError(
-                    "removed_after attribute must be a valid date in the format"
-                    f" 'YYYY-MM-DD', got '{removed_after}'")
-
         self.removed_after = removed_after
         self.link = link
         self.id = Deprecation._id
