@@ -287,10 +287,10 @@ def setup_parser():
     validate.add_argument("-q", "--quiet", action="count", help="Less logging (repeatable)")
     validate.add_argument("--debug", default=False, help=argparse.SUPPRESS)
     deprecations = validate.add_mutually_exclusive_group(required=False)
-    deprecations.add_argument("--skip-deprecations", dest="check_deprecations",
+    deprecations.add_argument("--no-deps", dest="check_deprecations",
                               action='store_const', const='skip',
                               help="Do not check for deprecations")
-    deprecations.add_argument("--deprecations-as-errors", dest="check_deprecations",
+    deprecations.add_argument("--strict", dest="check_deprecations",
                               action='store_const', const='error',
                               help="Any deprecations will cause a non-zero exit code")
 

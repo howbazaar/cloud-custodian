@@ -1,46 +1,43 @@
-# Copyright 2020 Cloud Custodian Authors.
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Initial thinking around the deprecation is identifying changes in filters and
-# actions. These are likely to be the most common aspects:
-#  * renaming a field
-#  * making an optional field required
-#  * removing a field
-#
-# Examples:
-#  - renaming a filter itself
-# c7n_azure/resources/key_vault
-# @KeyVault.filter_registry.register('whitelist')
-# - filter 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
-#
-# - mark -> tag
-# - unmark, untag -> remove-tag
-#
-#
-#  - renaming filter attributes
-# c7n/filters/iamaccess
-#    schema = type_schema(
-#        'cross-account',
-#        ...
-#        whitelist_from={'$ref': '#/definitions/filters_common/value_from'},
-#        whitelist={'type': 'array', 'items': {'type': 'string'}},
-#        ...)
-# - filter field 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
-#
-#
-# c7n/tags.py
-#  - optional attributes becoming required, in this case one of 'days' or 'hours'
-#  - optional action fields deprecated (one of 'days' or 'hours' must be specified) and will become an error after 2021-03-21
-#  - optional action field 'tag' deprecated (must be specified) and will become an error after 2021-03-21
-#
+"""Deprecations of policy elements.
+
+Initial thinking around the deprecation is identifying changes in filters and
+actions. These are likely to be the most common aspects:
+ * renaming a field
+ * making an optional field required
+ * removing a field
+
+Examples:
+ - renaming a filter itself
+c7n_azure/resources/key_vault
+@KeyVault.filter_registry.register('whitelist')
+- filter 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
+
+- mark -> tag
+- unmark, untag -> remove-tag
+
+
+ - renaming filter attributes
+c7n/filters/iamaccess
+   schema = type_schema(
+       'cross-account',
+       ...
+       whitelist_from={'$ref': '#/definitions/filters_common/value_from'},
+       whitelist={'type': 'array', 'items': {'type': 'string'}},
+       ...)
+- filter field 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
+
+
+c7n/tags.py
+ - optional attributes becoming required, in this case one of 'days' or 'hours'
+ - optional action fields deprecated (one of 'days' or 'hours' must be specified) and will become an error after 2021-03-21
+ - optional action field 'tag' deprecated (must be specified) and will become an error after 2021-03-21
+
+"""
 
 from datetime import datetime
-
-
-def action(name, replacement, removed_after):
-    """The action has been superseded by another action."""
-    return DeprecatedElement('action', name, replacement, removed_after)
 
 
 def alias(name, removed_after=None, link=None):
@@ -48,28 +45,34 @@ def alias(name, removed_after=None, link=None):
     return DeprecatedAlias(name, removed_after, link)
 
 
-def filter(name, replacement, removed_after):
+def action(replacement, removed_after=None, link=None):
+    """The action has been superseded by another action."""
+    return DeprecatedElement('action', replacement, removed_after, link)
+
+
+def filter(replacement, removed_after=None, link=None):
     """The filter has been superseded by another filter."""
-    return DeprecatedElement('filter', name, replacement, removed_after)
+    return DeprecatedElement('filter', replacement, removed_after, link)
 
 
-def field(name, replacement, removed_after):
+def field(name, replacement, removed_after=None, link=None):
     """The field has been renamed to something else."""
-    return DeprecatedField(name, replacement, removed_after)
+    return DeprecatedField(name, replacement, removed_after, link)
 
 
-def optional_field(name, removed_after):
+def optional_field(name, removed_after=None, link=None):
     """The field must now be specified."""
-    return DeprecatedOptionality([name], removed_after)
+    return DeprecatedOptionality([name], removed_after, link)
 
 
-def optional_fields(names, removed_after):
+def optional_fields(names, removed_after=None, link=None):
     """One of the field names must now be specified."""
-    return DeprecatedOptionality(names, removed_after)
+    return DeprecatedOptionality(names, removed_after, link)
 
 
 class Deprecation:
     """Base class for different deprecation types."""
+    _id = 0
 
     def __init__(self, removed_after, link):
         """All deprecations can have a removal date, and a link to docs.
@@ -90,6 +93,8 @@ class Deprecation:
 
         self.removed_after = removed_after
         self.link = link
+        self.id = Deprecation._id
+        Deprecation._id += 1
 
     def check(self, data):
         return True
@@ -129,16 +134,15 @@ class DeprecatedField(Deprecation):
 
 
 class DeprecatedElement(Deprecation):
-    def __init__(self, type_name, name, replacement, removed_after=None, link=None):
+    def __init__(self, name, replacement, removed_after=None, link=None):
         super().__init__(removed_after, link)
-        self.type_name = type_name
         self.name = name
         self.replacement = replacement
 
     def __str__(self):
         # filter or action prefix added by Filter and Action classes
-        typ, name, replacement = self.type_name, self.name, self.replacement
-        return f"{typ} '{name}' has been deprecated ({replacement})"
+        name, replacement = self.name, self.replacement
+        return f"{name} has been deprecated ({replacement})"
 
     def check(self, data):
         return True
@@ -173,6 +177,10 @@ class Context:
     def __str__(self):
         return f"{self.context} {self.deprecation}"
 
+    @property
+    def id(self):
+        return self.deprecation.id
+
 
 def check_deprecations(source, context=None, data=None):
     if data is None:
@@ -186,20 +194,37 @@ def check_deprecations(source, context=None, data=None):
     return deprecations
 
 
+def report(policy):
+    """Generate the deprecation report for the policy."""
+    policy_fields = policy.get_deprecations()
+    conditions = policy.conditions.get_deprecations()
+    mode = policy.get_execution_mode().get_deprecations()
+    filters = []
+    actions = []
+    rm = policy.resource_manager
+    resource = rm.get_deprecations()
+    for f in rm.filters:
+        filters.extend(f.get_deprecations())
+    for a in rm.actions:
+        actions.extend(a.get_deprecations())
+    return Report(policy.name, policy_fields, conditions,
+                  mode, resource, filters, actions)
+
+
 class Report:
     """A deprecation report is generated per policy."""
 
-    def __init__(self, policy_name):
+    def __init__(self, policy_name, policy_fields=(), conditions=(), mode=(),
+                 resource=(), filters=(), actions=()):
         self.policy_name = policy_name
-        self.policy_fields = []
-        self.conditions = []
-        self.mode = []
-        self.resource = []
-        self.filters = []
-        self.actions = []
+        self.policy_fields = policy_fields
+        self.conditions = conditions
+        self.mode = mode
+        self.resource = resource
+        self.filters = filters
+        self.actions = actions
 
-    @property
-    def has_deprecations(self):
+    def __bool__(self):
         # Start by checking the most likely things.
         if len(self.filters) > 0:
             return True
@@ -238,8 +263,6 @@ class Report:
         count = len(deprecations)
         if count == 0:
             return ()
-        if count == 1:
-            return (f"  {name}: {deprecations[0]}",)
         result = [f"  {name}:"]
         result.extend([f"    {d}" for d in deprecations])
         return result

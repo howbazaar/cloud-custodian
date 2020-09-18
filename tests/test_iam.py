@@ -8,7 +8,6 @@ import mock
 import tempfile
 import time
 
-from textwrap import dedent
 from unittest import TestCase
 from .common import load_data, BaseTest, functional
 from .test_offhours import mock_datetime_now
@@ -470,16 +469,11 @@ class IamRoleTest(BaseTest):
             p.resource_manager.get_arns(resources),
             ['arn:aws:iam::644160558196:role/service-role/AmazonSageMaker-ExecutionRole-20180108T122369']) # NOQA
 
-        report = p.deprecation_report()
-        self.assertTrue(report.has_deprecations)
-        # This output seems to indicate that putting a single deprecation error on
-        # one line isn't as good as an idea as it first seemed.
-        # Also the default output looks like it could be cleaned up, as "filter 'unused'" is
-        # duplicated due to the additional context wrapping the deprecation.
-        self.assertEqual(report.format(), dedent("""
+        self.assertDeprecation(p, """
             policy 'iam-inuse-role'
-              filters: unused: filter 'unused' has been deprecated (use the 'used' filter with 'state' attribute)
-            """)[1:-1])
+              filters:
+                unused: filter has been deprecated (use the 'used' filter with 'state' attribute)
+            """)
 
     def test_iam_role_get_resources(self):
         session_factory = self.replay_flight_data("test_iam_role_get_resource")

@@ -1244,19 +1244,3 @@ class Policy:
     def get_deprecations(self):
         """Return any matching deprecations for the policy fields itself."""
         return deprecated.check_deprecations(self, "policy")
-
-    def deprecation_report(self):
-        """Returns a deprecation report for this policy.
-        """
-        report = deprecated.Report(self.name)
-        report.policy_fields = self.get_deprecations()
-        report.conditions = self.conditions.get_deprecations()
-        report.mode = self.get_execution_mode().get_deprecations()
-
-        resource = self.resource_manager
-        report.resource = resource.get_deprecations()
-        for f in resource.filters:
-            report.filters.extend(f.get_deprecations())
-        for a in resource.actions:
-            report.actions.extend(a.get_deprecations())
-        return report

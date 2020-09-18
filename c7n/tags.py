@@ -602,7 +602,6 @@ class TagDelayedAction(Action):
     """
     deprecations = (
         deprecated.optional_fields(('hours', 'days'), '2021-06-30'),
-        deprecated.optional_field('tag', '2021-06-30'),
     )
 
     schema = utils.type_schema(

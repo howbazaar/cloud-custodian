@@ -86,14 +86,11 @@ class UniversalTagTest(BaseTest):
                 'resource': 'ec2',
                 'actions': [{'type': 'mark-for-op', 'op': 'stop'}]})
 
-        report = policy.deprecation_report()
-        self.assertTrue(report.has_deprecations)
-        self.assertEqual(report.format(), dedent("""
+        self.assertDeprecation(policy, """
             policy 'dep-test'
               actions:
                 mark-for-op: optional fields deprecated (one of 'hours' or 'days' must be specified)
-                mark-for-op: optional field 'tag' deprecated (must be specified)
-            """)[1:-1])
+            """)
 
     def test_unmark_deprecations(self):
         policy = self.load_policy({
@@ -102,12 +99,11 @@ class UniversalTagTest(BaseTest):
                 'filters': [{'tag:foo': 'exists'}],
                 'actions': [{'type': 'unmark', 'tags': ['foo']}]})
 
-        report = policy.deprecation_report()
-        self.assertTrue(report.has_deprecations)
-        self.assertEqual(report.format(), dedent("""
+        self.assertDeprecation(policy, """
             policy 'dep-test'
-              actions: remove-tag: alias 'unmark' has been deprecated
-            """)[1:-1])
+              actions:
+                remove-tag: alias 'unmark' has been deprecated
+            """)
 
 
 class CoalesceCopyUserTags(BaseTest):

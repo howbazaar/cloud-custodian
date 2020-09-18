@@ -633,7 +633,7 @@ class CopySnapshotTags(BaseAction):
                     enable: True
     """
     deprecations = (
-        deprecated.action('set-snapshot-copy-tags', "use modify-db instead with `CopyTagsToSnapshot`", '2021-06-30'),
+        deprecated.action("use modify-db instead with `CopyTagsToSnapshot`", '2021-06-30'),
     )
 
     schema = type_schema(

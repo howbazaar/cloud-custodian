@@ -13,7 +13,8 @@ import sys
 import yaml
 from yaml.constructor import ConstructorError
 
-from c7n.exceptions import ClientError, PolicyValidationError
+from c7n import deprecated
+from c7n.exceptions import ClientError, DeprecationError, PolicyValidationError
 from c7n.provider import clouds
 from c7n.policy import Policy, PolicyCollection, load as policy_load
 from c7n.schema import ElementSchema, StructureParser, generate
@@ -243,8 +244,8 @@ def validate(options):
                     # for deprecated usage as there is no guarantee as to the
                     # state of the policy.
                     if options.check_deprecations != "skip":
-                        report = policy.deprecation_report()
-                        if report.has_deprecations:
+                        report = deprecated.report(policy)
+                        if report:
                             found_deprecations = True
                             # TODO: add source_locator for the format.
                             # TODO: consider different formats for output.
