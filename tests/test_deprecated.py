@@ -7,25 +7,28 @@ from textwrap import dedent
 
 from c7n import deprecated
 
+
 class DeprecationTest(BaseTest):
 
     def test_action(self):
-        deprecation = deprecated.action("use modify-db instead with `CopyTagsToSnapshot`", '2021-06-30')
+        deprecation = deprecated.action(
+            "use modify-db instead with `CopyTagsToSnapshot`", '2021-06-30')
         # Always matches.
         self.assertTrue(deprecation.check({}))
         self.assertEqual(
             str(deprecation),
             "action has been deprecated (use modify-db instead with `CopyTagsToSnapshot`)"
-            )
+        )
 
     def test_filter(self):
-        deprecation = deprecated.filter("use the 'used' filter with 'state' attribute", '2021-06-30')
+        deprecation = deprecated.filter(
+            "use the 'used' filter with 'state' attribute", '2021-06-30')
         # Always matches.
         self.assertTrue(deprecation.check({}))
         self.assertEqual(
             str(deprecation),
             "filter has been deprecated (use the 'used' filter with 'state' attribute)"
-            )
+        )
 
     def test_field(self):
         deprecation = deprecated.field('severity_normalized', 'severity_label', '2021-06-30')
@@ -34,8 +37,7 @@ class DeprecationTest(BaseTest):
         self.assertEqual(
             str(deprecation),
             "field 'severity_normalized' has been deprecated (replaced by 'severity_label')"
-            )
-
+        )
 
 
 class ReportTest(BaseTest):

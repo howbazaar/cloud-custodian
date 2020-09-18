@@ -56,4 +56,4 @@ class Element:
 
     def get_deprecations(self):
         """Return any matching deprecations for the policy fields itself."""
-        return deprecated.check_deprecations(self, self.type+":")
+        return deprecated.check_deprecations(self, self.type + ":")

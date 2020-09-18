@@ -13,7 +13,7 @@ Examples:
  - renaming a filter itself
 c7n_azure/resources/key_vault
 @KeyVault.filter_registry.register('whitelist')
-- filter 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
+- filter 'whitelist' has been deprecated (replaced by 'allow')
 
 - mark -> tag
 - unmark, untag -> remove-tag
@@ -27,13 +27,13 @@ c7n/filters/iamaccess
        whitelist_from={'$ref': '#/definitions/filters_common/value_from'},
        whitelist={'type': 'array', 'items': {'type': 'string'}},
        ...)
-- filter field 'whitelist' has been deprecated (replaced by 'allow') and will be removed after 2021-03-21
+- filter field 'whitelist' has been deprecated (replaced by 'allow')
 
 
 c7n/tags.py
  - optional attributes becoming required, in this case one of 'days' or 'hours'
- - optional action fields deprecated (one of 'days' or 'hours' must be specified) and will become an error after 2021-03-21
- - optional action field 'tag' deprecated (must be specified) and will become an error after 2021-03-21
+ - optional action fields deprecated (one of 'days' or 'hours' must be specified)
+ - optional action field 'tag' deprecated (must be specified)
 
 """
 
@@ -88,8 +88,10 @@ class Deprecation:
                 raise TypeError("removed_after attribute must be a string")
             try:
                 datetime.strptime(removed_after, "%Y-%m-%d")
-            except:
-                raise TypeError(f"removed_after attribute must be a valid date in the format 'YYYY-MM-DD', got '{removed_after}'")
+            except ValueError:
+                raise TypeError(
+                    "removed_after attribute must be a valid date in the format"
+                    f" 'YYYY-MM-DD', got '{removed_after}'")
 
         self.removed_after = removed_after
         self.link = link
@@ -158,7 +160,6 @@ class DeprecatedOptionality(Deprecation):
         return all([key not in data for key in self.fields])
 
     def __str__(self):
-        when = self.removed_after
         if len(self.fields) > 1:
             quoted = [f"'{field}'" for field in self.fields]
             names = ' or '.join(quoted)
@@ -266,4 +267,3 @@ class Report:
         result = [f"  {name}:"]
         result.extend([f"    {d}" for d in deprecations])
         return result
-

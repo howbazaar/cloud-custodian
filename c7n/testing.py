@@ -100,9 +100,10 @@ class CustodianTestCore:
         [p.validate() for p in collection]
         if not allow_deprecations:
             for p in collection:
-                r = deprecation.Report(p)
+                r = deprecated.Report(p)
                 if r:
-                    raise DeprecationError(f"policy {p.name} contains deprecated usage\n{r.format()}")
+                    raise DeprecationError(
+                        f"policy {p.name} contains deprecated usage\n{r.format()}")
         return list(collection)[0]
 
     def _get_policy_config(self, **kw):

@@ -5,10 +5,8 @@
 module to test some universal tagging infrastructure not directly exposed.
 """
 import time
-from textwrap import dedent
 from mock import MagicMock, call
 
-from c7n import deprecated
 from c7n.tags import universal_retry, coalesce_copy_user_tags
 from c7n.exceptions import PolicyExecutionError, PolicyValidationError
 from c7n.utils import yaml_load
@@ -82,9 +80,9 @@ class UniversalTagTest(BaseTest):
 
     def test_mark_for_op_deprecations(self):
         policy = self.load_policy({
-                'name': 'dep-test',
-                'resource': 'ec2',
-                'actions': [{'type': 'mark-for-op', 'op': 'stop'}]})
+            'name': 'dep-test',
+            'resource': 'ec2',
+            'actions': [{'type': 'mark-for-op', 'op': 'stop'}]})
 
         self.assertDeprecation(policy, """
             policy 'dep-test'
@@ -94,10 +92,10 @@ class UniversalTagTest(BaseTest):
 
     def test_unmark_deprecations(self):
         policy = self.load_policy({
-                'name': 'dep-test',
-                'resource': 'ec2',
-                'filters': [{'tag:foo': 'exists'}],
-                'actions': [{'type': 'unmark', 'tags': ['foo']}]})
+            'name': 'dep-test',
+            'resource': 'ec2',
+            'filters': [{'tag:foo': 'exists'}],
+            'actions': [{'type': 'unmark', 'tags': ['foo']}]})
 
         self.assertDeprecation(policy, """
             policy 'dep-test'
