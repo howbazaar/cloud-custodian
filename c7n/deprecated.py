@@ -84,6 +84,12 @@ class Deprecation:
         self.id = Deprecation._id
         Deprecation._id += 1
 
+    @property
+    def remove_text(self):
+        if self.removed_after is None:
+            return ""
+        return f"Will be removed after {self.removed_after}"
+
     def check(self, data):
         return True
 
@@ -154,6 +160,12 @@ class DeprecatedOptionality(Deprecation):
         field = self.fields[0]
         return f"optional field '{field}' deprecated (must be specified)"
 
+    @property
+    def remove_text(self):
+        if self.removed_after is None:
+            return ""
+        return f"Will become an error after {self.removed_after}"
+
 
 class Context:
     """Adds extra context to a deprecation."""
@@ -167,6 +179,14 @@ class Context:
     @property
     def id(self):
         return self.deprecation.id
+
+    @property
+    def link(self):
+        return self.deprecation.link
+
+    @property
+    def remove_text(self):
+        return self.deprecation.remove_text
 
 
 def check_deprecations(source, context=None, data=None):
@@ -227,7 +247,7 @@ class Report:
             return True
         return False
 
-    def format(self, source_locator=None):
+    def format(self, source_locator=None, footnotes=None):
         """Format the report for output.
 
         If a source locator is specified, it is used to provide file and line number
@@ -238,18 +258,77 @@ class Report:
             file_and_line = source_locator.find(self.policy_name)
             location = f" ({file_and_line})"
         lines = [f"policy '{self.policy_name}'{location}"]
-        lines.extend(self.section('attributes', self.policy_fields))
-        lines.extend(self.section('condition', self.conditions))
-        lines.extend(self.section('mode', self.mode))
-        lines.extend(self.section('resource', self.resource))
-        lines.extend(self.section('filters', self.filters))
-        lines.extend(self.section('actions', self.actions))
+        lines.extend(self.section('attributes', self.policy_fields, footnotes))
+        lines.extend(self.section('condition', self.conditions, footnotes))
+        lines.extend(self.section('mode', self.mode, footnotes))
+        lines.extend(self.section('resource', self.resource, footnotes))
+        lines.extend(self.section('filters', self.filters, footnotes))
+        lines.extend(self.section('actions', self.actions, footnotes))
         return "\n".join(lines)
 
-    def section(self, name, deprecations):
+    def section(self, name, deprecations, footnotes):
         count = len(deprecations)
         if count == 0:
             return ()
+
+        def footnote(d):
+            if footnotes is None:
+                return ""
+            return footnotes.note(d)
         result = [f"  {name}:"]
-        result.extend([f"    {d}" for d in deprecations])
+        result.extend([f"    {d}{footnote(d)}" for d in deprecations])
         return result
+
+
+class Footnotes:
+    """A helper for defining and listing footnotes for deprecations.
+
+    The deprecation date and URL being shown for every deprecation warning
+    during validation would make the output repetitive and ungainly.
+
+    This mechanism can allow for a note to be added at the end of each
+    deprecation line and have the dates and URLs if they exist, shown at the
+    end.
+    """
+    def __init__(self):
+        self.seen = {}
+        self.notes = []
+
+    def note(self, d):
+        """Return a reference to the footnote if the deprecation has one.
+
+        A deprecation will have a footnote if either the remove_date or the URL are set.
+        """
+        if d.id not in self.seen:
+            footnote = self._note(d)
+            if not footnote:
+                self.seen[d.id] = None
+                return ""
+            self.notes.append(footnote)
+            ref = len(self.notes)
+            self.seen[d.id] = ref
+        else:
+            ref = self.seen[d.id]
+        if ref is None:
+            return ""
+        return f" [{ref}]"
+
+    def _note(self, d):
+        removed = d.remove_text
+        if not removed and d.link is None:
+            return ""
+        text = ""
+        if d.link is not None:
+            text = f"See {d.link}"
+            if removed:
+                text += ", "
+                removed = removed[0].lower() + removed[1:]
+        if removed:
+            text += removed
+        return text
+
+    def __call__(self):
+        lines = []
+        for i, note in enumerate(self.notes, 1):
+            lines.append(f"[{i}] {note}")
+        return "\n".join(lines)

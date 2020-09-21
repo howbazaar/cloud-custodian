@@ -196,6 +196,7 @@ def validate(options):
     structure = StructureParser()
     errors = []
     found_deprecations = False
+    footnotes = deprecated.Footnotes()
 
     for config_file in options.configs:
 
@@ -249,7 +250,8 @@ def validate(options):
                             found_deprecations = True
                             # TODO: add source_locator for the format.
                             # TODO: consider different formats for output.
-                            log.warning("deprecated usage found in policy\n" + report.format())
+                            log.warning("deprecated usage found in policy\n" +
+                                        report.format(footnotes=footnotes))
 
                 except Exception as e:
                     msg = "Policy: %s is invalid: %s" % (
@@ -262,9 +264,13 @@ def validate(options):
         log.error("Configuration invalid: {}".format(config_file))
         for e in errors:
             log.error("%s" % e)
+    if found_deprecations:
+        notes = footnotes()
+        if notes:
+            log.warning("deprecation footnotes:\n" + notes)
+        if options.check_deprecations == "error":
+            sys.exit(1)
     if errors:
-        sys.exit(1)
-    if found_deprecations and options.check_deprecations == "error":
         sys.exit(1)
 
 

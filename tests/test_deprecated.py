@@ -96,3 +96,34 @@ class ReportTest(BaseTest):
                 mark-for-op: optional fields deprecated (one of 'hours' or 'days' must be specified)
                 mark-for-op: optional field 'tag' deprecated (must be specified)
             """)[1:-1])
+
+    def test_footnotes(self):
+        footnotes = deprecated.Footnotes()
+        report = deprecated.Report("some-policy", mode=[
+            deprecated.field('foo', 'bar'),
+            deprecated.field('baz', 'yet', '2021-06-30'),
+        ], actions=[
+            deprecated.Context(
+                'mark-for-op:',
+                deprecated.optional_fields(('hours', 'days'),
+                                           link="http://docs.example.com/deprecations/foo#time")),
+            deprecated.Context(
+                'mark-for-op:',
+                deprecated.optional_field('tag', '2021-06-30',
+                                          "http://docs.example.com/deprecations/foo#tag")),
+        ])
+        self.assertTrue(report)
+        self.assertEqual(report.format(footnotes=footnotes), dedent("""
+            policy 'some-policy'
+              mode:
+                field 'foo' has been deprecated (replaced by 'bar')
+                field 'baz' has been deprecated (replaced by 'yet') [1]
+              actions:
+                mark-for-op: optional fields deprecated (one of 'hours' or 'days' must be specified) [2]
+                mark-for-op: optional field 'tag' deprecated (must be specified) [3]
+            """)[1:-1])  # noqa
+        self.assertEqual(footnotes(), dedent("""
+            [1] Will be removed after 2021-06-30
+            [2] See http://docs.example.com/deprecations/foo#time
+            [3] See http://docs.example.com/deprecations/foo#tag, will become an error after 2021-06-30
+            """)[1:-1])  # noqa
