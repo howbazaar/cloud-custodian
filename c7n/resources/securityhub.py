@@ -307,7 +307,7 @@ class PostFinding(Action):
     """ # NOQA
 
     deprecations = (
-        deprecated.field('severity_normalized', 'severity_label', '2021-06-30'),
+        deprecated.field('severity_normalized', 'severity_label'),
     )
 
     FindingVersion = "2018-10-08"

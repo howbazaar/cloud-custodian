@@ -37,8 +37,6 @@ c7n/tags.py
 
 """
 
-from datetime import datetime
-
 
 def alias(name, removed_after=None, link=None):
     """A filter or action alias is deprecated."""

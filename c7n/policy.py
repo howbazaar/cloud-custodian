@@ -993,9 +993,9 @@ class Policy:
     log = logging.getLogger('custodian.policy')
 
     deprecations = (
-        deprecated.field('region', 'region in condition block', '2021-06-30'),
-        deprecated.field('start', 'value filter in condition block', '2021-06-30'),
-        deprecated.field('end', 'value filter in condition block', '2021-06-30'),
+        deprecated.field('region', 'region in condition block'),
+        deprecated.field('start', 'value filter in condition block'),
+        deprecated.field('end', 'value filter in condition block'),
     )
 
     def __init__(self, data, options, session_factory=None):

@@ -370,7 +370,7 @@ class Tag(Action):
     concurrency = 2
 
     deprecations = (
-        deprecated.alias('mark', '2021-06-30'),
+        deprecated.alias('mark'),
     )
 
     schema = utils.type_schema(
@@ -445,8 +445,8 @@ class RemoveTag(Action):
     """
 
     deprecations = (
-        deprecated.alias('unmark', '2021-06-30'),
-        deprecated.alias('untag', '2021-06-30'),
+        deprecated.alias('unmark'),
+        deprecated.alias('untag'),
     )
 
     batch_size = 100
@@ -601,7 +601,7 @@ class TagDelayedAction(Action):
               op: stop
     """
     deprecations = (
-        deprecated.optional_fields(('hours', 'days'), '2021-06-30'),
+        deprecated.optional_fields(('hours', 'days')),
     )
 
     schema = utils.type_schema(

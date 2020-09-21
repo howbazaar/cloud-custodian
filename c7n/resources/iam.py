@@ -854,7 +854,7 @@ class UnusedIamRole(IamRoleUsage):
                 state: false
     """
     deprecations = (
-        deprecated.filter("use the 'used' filter with 'state' attribute", '2021-06-30'),
+        deprecated.filter("use the 'used' filter with 'state' attribute"),
     )
 
     schema = type_schema('unused')
