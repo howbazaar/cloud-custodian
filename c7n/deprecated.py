@@ -256,7 +256,8 @@ class Report:
         location = ""
         if source_locator is not None:
             file_and_line = source_locator.find(self.policy_name)
-            location = f" ({file_and_line})"
+            if file_and_line:
+                location = f" ({file_and_line})"
         lines = [f"policy '{self.policy_name}'{location}"]
         lines.extend(self.section('attributes', self.policy_fields, footnotes))
         lines.extend(self.section('condition', self.conditions, footnotes))
