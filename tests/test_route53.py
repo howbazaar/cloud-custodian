@@ -1,7 +1,10 @@
 # Copyright 2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
+import time
+
 from .common import BaseTest
+from pytest_terraform import terraform
 
 
 class Route53HostedZoneTest(BaseTest):
@@ -100,6 +103,28 @@ class Route53HostedZoneTest(BaseTest):
         tags = client.list_tags_for_resource(ResourceType="hostedzone", ResourceId=_id)
         self.assertEqual(len(tags["ResourceTagSet"]["Tags"]), 2)
         self.assertTrue("abc" in tags["ResourceTagSet"]["Tags"][0].values())
+
+
+@terraform('route53_hostedzone_delete', teardown=terraform.TEARDOWN_OFF)
+def test_route53_hostedzone_delete(test, route53_hostedzone_delete):
+    session_factory = test.replay_flight_data("test_route53_hostedzone_delete")
+    client = session_factory().client("route53")
+    p = test.load_policy({
+        "name": "r53domain-delete-hostedzone",
+        "resource": "hostedzone",
+        "filters": [{"tag:TestTag": "present"}],
+        "actions": ["delete"]},
+        session_factory=session_factory)
+
+    p.run()
+
+    if test.recording:
+        # wait for hosted zone deletion
+        time.sleep(30)
+
+    assert client.list_hosted_zones_by_name(
+        DNSName=route53_hostedzone_delete['aws_route53_zone.test_hosted_zone.name']
+    ).get('HostedZones') == []
 
 
 class Route53HealthCheckTest(BaseTest):
