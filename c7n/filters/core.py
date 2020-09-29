@@ -19,6 +19,7 @@ from dateutil.parser import parse
 from distutils import version
 from random import sample
 import jmespath
+import celpy
 
 from c7n.element import Element
 from c7n.exceptions import PolicyValidationError
@@ -410,7 +411,7 @@ class ComparableVersion(version.LooseVersion):
 class ValueFilter(BaseValueFilter):
     """Generic value filter using jmespath
     """
-    op = v = vtype = None
+    query = op = v = vtype = None
 
     schema = {
         'type': 'object',
@@ -420,6 +421,7 @@ class ValueFilter(BaseValueFilter):
         'properties': {
             # Doesn't mix well as enum with inherits that extend
             'type': {'enum': ['value']},
+            'query': {'type': 'string'},
             'key': {'type': 'string'},
             'value_type': {'$ref': '#/definitions/filters_common/value_types'},
             'default': {'type': 'object'},
@@ -460,9 +462,28 @@ class ValueFilter(BaseValueFilter):
 
         return self
 
+    def prepare_cel(self):
+        self.env = celpy.Environment()
+        try:
+            self.query = self.env.compile(self.data["query"])
+            # prgm = self.env.program(expr)
+        except celpy.CELParseError as ex:
+            raise PolicyValidationError(f"Bad query expression: {ex}")
+
     def validate(self):
         if len(self.data) == 1:
             return self
+
+        if self.data.get("query", None) is not None:
+            # If we have an CEL expression, no other fields are valid.
+            keys = set(self.data.keys())
+            keys.discard("query")
+            keys.discard("type")
+            if len(keys) > 0:
+                raise PolicyValidationError(
+                    f"Unsupported additional values in CEL filter: {', '.join(keys)}")
+            self.prepare_cel()
+            return
 
         # `resource_count` requires a slightly different schema than the rest of
         # the value filters because it operates on the full resource list
@@ -523,7 +544,8 @@ class ValueFilter(BaseValueFilter):
 
         matched = self.match(i)
         if matched and self.annotate:
-            set_annotation(i, ANNOTATION_KEY, self.k)
+            annotation = getattr(self, 'k', None) or self.data.get("query")
+            set_annotation(i, ANNOTATION_KEY, annotation)
         return matched
 
     def process(self, resources, event=None):
@@ -540,6 +562,20 @@ class ValueFilter(BaseValueFilter):
         return super(ValueFilter, self).get_resource_value(k, i, self.data.get('value_regex'))
 
     def match(self, i):
+        if self.data.get("query") is not None:
+            if self.query is None:
+                self.prepare_cel()
+            # We are running a cel query, so behave differently...
+            try:
+                # TODO: add the c7n functions to the program.
+                prgm = self.env.program(self.query, )
+                # We should have a better name for 'i', we think it is the resouce representation.
+                return bool(prgm.evaluate(i))
+                # Not sure if we need to type cast the result
+            except celpy.CELEvalError as ex: # maybe there is a different error type...
+                self.log.error("CEL error: ", ex)
+                return False
+
         if self.v is None and len(self.data) == 1:
             [(self.k, self.v)] = self.data.items()
         elif self.v is None and not hasattr(self, 'content_initialized'):

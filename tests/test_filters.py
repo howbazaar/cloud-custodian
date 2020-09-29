@@ -101,15 +101,36 @@ class TestOrFilter(unittest.TestCase):
         self.assertEqual(f.process(results), results)
         self.assertEqual(f.process([instance(Architecture="amd64")]), [])
 
+    def test_query_or(self):
+        f = filters.factory(
+            {
+                "type": "value",
+                "query": "Architecture == 'x86_64' || Architecture == 'armv8'",
+            }
+        )
+        results = [instance(Architecture="x86_64")]
+        self.assertEqual(f.process(results), results)
+        self.assertEqual(f.process([instance(Architecture="amd64")]), [])
+
 
 class TestAndFilter(unittest.TestCase):
 
     def test_and(self):
         f = filters.factory({"and": [{"Architecture": "x86_64"}, {"Color": "green"}]})
-        results = [instance(Architecture="x86_64", Color="green")]
+        results = [instance(Architecture="x86_64", Color="green") for i in range(10000)]
         self.assertEqual(f.process(results), results)
-        self.assertEqual(f.process([instance(Architecture="x86_64", Color="blue")]), [])
-        self.assertEqual(f.process([instance(Architecture="x86_64")]), [])
+        # self.assertEqual(f.process([instance(Architecture="x86_64", Color="blue")]), [])
+        # self.assertEqual(f.process([instance(Architecture="x86_64")]), [])
+
+    def test_query_and(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "Architecture == 'x86_64' && Color == 'green'",
+        })
+        results = [instance(Architecture="x86_64", Color="green") for i in range(10000)]
+        self.assertEqual(f.process(results), results)
+        # self.assertEqual(f.process([instance(Architecture="x86_64", Color="blue")]), [])
+        # self.assertEqual(f.process([instance(Architecture="x86_64")]), [])
 
 
 class TestNotFilter(unittest.TestCase):
@@ -119,10 +140,24 @@ class TestNotFilter(unittest.TestCase):
         results = [
             instance(Architecture="x86_64", Color="green"),
             instance(Architecture="x86_64", Color="blue"),
-            instance(Architecture="x86_64", Color="yellow"),
+            instance(Architecture="arm64", Color="yellow"),
         ]
 
         f = filters.factory({"not": [{"Architecture": "x86_64"}, {"Color": "green"}]})
+        self.assertEqual(len(f.process(results)), 2)
+
+    def test_query_not(self):
+
+        results = [
+            instance(Architecture="x86_64", Color="green"),
+            instance(Architecture="x86_64", Color="blue"),
+            instance(Architecture="arm64", Color="yellow"),
+        ]
+
+        f = filters.factory({
+            "type": "value",
+            "query": "!(Architecture == 'x86_64' && Color == 'green')",
+        })
         self.assertEqual(len(f.process(results)), 2)
 
     def test_not_break_empty_set(self):
@@ -154,6 +189,49 @@ class TestNotFilter(unittest.TestCase):
         f.manager = Manager()
         self.assertEqual(len(f.process(results)), 1)
         self.assertFalse(fake.invoked)
+
+
+class TestQueryFilter(unittest.TestCase):
+
+    def test_default_sg(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "SecurityGroups.exists(x, x['GroupName']=='default')",
+        })
+        results = [instance()]
+        self.assertEqual(f.process(results), results)
+
+    def test_tag_equlity(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "tag('Name') == 'CompileLambda'",
+        })
+        results = [instance()]
+        self.assertEqual(f.process(results), results)
+
+    def test_tag_empty(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "tag('Name') == ''",
+        })
+        results = [instance()]
+        self.assertEqual(f.process(results), results)
+
+    def test_tag_exists(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "has(tag('Name'))",
+        })
+        results = [instance()]
+        self.assertEqual(f.process(results), results)
+
+    def test_tag_not_exists(self):
+        f = filters.factory({
+            "type": "value",
+            "query": "!has(tag('Name'))",
+        })
+        results = [instance()]
+        self.assertEqual(f.process(results), results)
 
 
 class TestValueFilter(unittest.TestCase):
@@ -216,6 +294,14 @@ class TestValueFilter(unittest.TestCase):
             "op": 'eq',
             "value_type": "expr",
             "key": "a"})
+        self.assertTrue(vf.match(resource))
+
+    def test_value_type_query(self):
+        resource = {'a': 1, 'b': 1}
+        vf = filters.factory({
+            "type": "value",
+            "query": "a == b",
+        })
         self.assertTrue(vf.match(resource))
 
     def test_value_match(self):
