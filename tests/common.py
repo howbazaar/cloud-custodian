@@ -5,7 +5,6 @@ import gzip
 import json
 import logging
 import os
-import re
 import unittest
 import uuid
 from c7n.config import Bag
