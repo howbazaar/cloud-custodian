@@ -37,6 +37,11 @@ c7n/tags.py
 
 """
 
+# Treat deprecation warnings as errors.
+STRICT = "strict"
+# Skip checking for deprecations
+SKIP = "skip"
+
 
 def alias(name, removed_after=None, link=None):
     """A filter or action alias is deprecated."""

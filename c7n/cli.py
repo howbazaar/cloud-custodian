@@ -21,6 +21,7 @@ except ImportError:
     def setproctitle(t):
         return None
 
+from c7n import deprecated
 from c7n.config import Config
 
 DEFAULT_REGION = 'us-east-1'
@@ -288,10 +289,10 @@ def setup_parser():
     validate.add_argument("--debug", default=False, help=argparse.SUPPRESS)
     deprecations = validate.add_mutually_exclusive_group(required=False)
     deprecations.add_argument("--no-deps", dest="check_deprecations",
-                              action='store_const', const='skip',
+                              action='store_const', const=deprecated.SKIP,
                               help="Do not check for deprecations")
     deprecations.add_argument("--strict", dest="check_deprecations",
-                              action='store_const', const='error',
+                              action='store_const', const=deprecated.STRICT,
                               help="Any deprecations will cause a non-zero exit code")
 
     return parser

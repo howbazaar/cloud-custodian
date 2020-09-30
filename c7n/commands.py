@@ -252,7 +252,7 @@ def validate(options):
                     # If the policy is invalid, there isn't much point checking
                     # for deprecated usage as there is no guarantee as to the
                     # state of the policy.
-                    if options.check_deprecations != "skip":
+                    if options.check_deprecations != deprecated.SKIP:
                         report = deprecated.report(policy)
                         if report:
                             found_deprecations = True
@@ -277,7 +277,7 @@ def validate(options):
         notes = footnotes()
         if notes:
             log.warning("deprecation footnotes:\n" + notes)
-        if options.check_deprecations == "error":
+        if options.check_deprecations == deprecated.STRICT:
             sys.exit(1)
     if errors:
         sys.exit(1)
