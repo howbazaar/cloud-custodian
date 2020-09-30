@@ -4,7 +4,7 @@
 
 import time
 
-from .common import BaseTest, pytest_regex, functional
+from .common import BaseTest, functional
 from pytest_terraform import terraform
 
 
@@ -240,9 +240,7 @@ def test_mark_datapipeline(test, mark_datapipeline):
     response = client.describe_pipelines(pipelineIds=[pipe_id])
 
     tags = response["pipelineDescriptionList"][0]["tags"]
-    test.assertEqual(tags, [
-        {
-            "key": "custodian_mark",
-            "value": pytest_regex("Resource does not meet policy: delete@.*"),
-        }
-    ])
+    test.assertEqual(len(tags), 1)
+    tag = tags[0]
+    test.assertEqual(tag["key"], "custodian_mark")
+    test.assertRegex(tag["value"], "Resource does not meet policy: delete@.*")
