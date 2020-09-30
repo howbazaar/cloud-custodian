@@ -1,18 +1,21 @@
 # Copyright 2015-2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
-import json
 import ipaddress
+import json
+import mock
 import os
 import tempfile
 import time
+import yaml
 
 from botocore.exceptions import ClientError
 from dateutil.parser import parse as parse_date
-import mock
+from textwrap import dedent
 
 from c7n import utils
 from c7n.config import Config
+from c7n.exceptions import PolicyValidationError
 from .common import BaseTest
 
 
@@ -447,3 +450,117 @@ class UtilTest(BaseTest):
                  'b': '{account_id}'}, account_id=21),
             {'k': '{limit}',
              'b': '21'})
+
+    def test_annotate_policies(self):
+        policies = {'policies': [
+            {'name': 'first', 'resource': 'aws.ec2'},
+            {'name': 'second', 'resource': 'aws.ec2'},
+            {'name': 'third', 'resource': 'aws.ec2'},
+            {'invalid': 'fourth', 'resource': 'aws.ec2'},
+        ]}
+        lines = {'first': 2, 'second': 10, 'fourth': 42}
+        utils.annotate_policies(policies, 'somefile.yaml', lines)
+        self.assertEqual(
+            policies,
+            {'policies': [
+                {'name': 'first', 'resource': 'aws.ec2', 'metadata': {
+                    'filename': 'somefile.yaml', 'line': 2}},
+                {'name': 'second', 'resource': 'aws.ec2', 'metadata': {
+                    'filename': 'somefile.yaml', 'line': 10}},
+                {'name': 'third', 'resource': 'aws.ec2'},
+                {'invalid': 'fourth', 'resource': 'aws.ec2'},
+            ]})
+
+
+class PolicyLoaderTest(BaseTest):
+
+    def test_empty(self):
+        policies = dedent("""\
+            policies:
+            """)
+        loader = utils.PolicyLoader()
+        results = yaml.load(policies, Loader=loader.wrapped())
+
+        self.assertEqual(results, {'policies': None})
+        self.assertEqual(loader.policies, {})
+
+    def test_policy_identification(self):
+        policies = dedent("""\
+            policies:
+              - name: first
+                resource: aws.ec2
+
+              # even though the name is the second element, the
+              # policy line number is recorded as the first line
+              - resource: aws.ec2
+                name: second
+
+              - name: third
+                resource: aws.ec2
+
+            """)
+        loader = utils.PolicyLoader()
+        results = yaml.load(policies, Loader=loader.wrapped())
+
+        self.assertEqual(results, {
+            'policies': [
+                {'name': 'first', 'resource': 'aws.ec2'},
+                {'name': 'second', 'resource': 'aws.ec2'},
+                {'name': 'third', 'resource': 'aws.ec2'},
+            ]})
+        self.assertEqual(loader.policies, {
+            'first': 2, 'second': 7, 'third': 10,
+        })
+
+    def test_similar_keys_not_policies(self):
+        policies = dedent("""\
+            policies:
+              - name: first
+                resource: aws.ec2
+
+              # even though the name is the second element, the
+              # policy line number is recorded as the first line
+              - resource: aws.ec2
+                name: second
+
+            # Add a different top level key contains something that
+            # looks like a policy, but isn't.
+
+            other:
+              - name: third
+                resource: aws.ec2
+
+            """)
+        loader = utils.PolicyLoader()
+        results = yaml.load(policies, Loader=loader.wrapped())
+
+        self.assertEqual(results, {
+            'policies': [
+                {'name': 'first', 'resource': 'aws.ec2'},
+                {'name': 'second', 'resource': 'aws.ec2'},
+            ],
+            'other': [
+                {'name': 'third', 'resource': 'aws.ec2'},
+            ],
+        })
+        self.assertEqual(loader.policies, {
+            'first': 2, 'second': 7,
+        })
+
+    def test_duplicate_policy_name(self):
+        policies = dedent("""\
+            policies:
+              - name: first
+                resource: aws.ec2
+
+              - resource: aws.ec2
+                name: second
+
+              - name: first
+                resource: aws.ec2
+
+            """)
+        loader = utils.PolicyLoader()
+        with self.assertRaises(PolicyValidationError) as ex:
+            yaml.load(policies, Loader=loader.wrapped())
+        self.assertEqual(str(ex.exception), "duplicate policy name 'first' found at line 8 and 2")

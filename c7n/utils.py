@@ -65,15 +65,20 @@ def load_file(path, format=None, vars=None):
                 raise VarsSubstitutionError(msg)
 
         if format == 'yaml':
-            return yaml_load(contents)
+            loader = PolicyLoader()
+            content = yaml_load(contents, loader.wrapped())
+            annotate_policies(content, path, loader.policies)
+            return content
         elif format == 'json':
             return loads(contents)
 
 
-def yaml_load(value):
+def yaml_load(value, loader=None):
     if yaml is None:
         raise RuntimeError("Yaml not available")
-    return yaml.load(value, Loader=SafeLoader)
+    if loader is None:
+        loader = SafeLoader
+    return yaml.load(value, Loader=loader)
 
 
 def yaml_dump(value):
@@ -674,3 +679,90 @@ def select_keys(d, keys):
     for k in keys:
         result[k] = d.get(k)
     return result
+
+
+class PolicyLoader:
+    """PolicyLoader adds knowledge about policy structure.
+
+    This class augments the standard YAML SafeLoader to record the line numbers
+    of where the policies are first defined.
+
+    The wrapped YAML loader class hooks into the event generation model that
+    happens as the YAML document is parsed.
+
+    A FSM is used to record the line numbers. It works something like this:
+     * When we process the top level mapping element with the name 'policies'
+       start looking for policy names.
+     * A sequence is expected under policies, and as we start the mapping
+       element of that sequence, record the line number.
+     * When we find the mapping element "name: foo", check the current line
+       numbers to ensure we haven't seen the name 'foo' before, and if we have,
+       raise an exception listing both line numbers. Otherwise record the line
+       number for that policy.
+     * As the event flow retreats over the sequence end, stop capturing line
+       numbers. This avoid poluting the line numbers should the document
+       structure grow extra expected top level keys.
+
+    """
+
+    def __init__(self):
+        self.policies = {}
+        self.depth = 0
+        self.key = None
+        self.capture = False
+        self.line = 0
+
+    def wrapped(self):
+        outer = self
+
+        class Wrapped(SafeLoader):
+            def get_event(self):
+                event = super().get_event()
+                if isinstance(event, (yaml.MappingStartEvent, yaml.SequenceStartEvent)):
+                    outer.depth += 1
+                    if outer.depth == 3:
+                        outer.line = event.start_mark.line + 1
+                elif isinstance(event, (yaml.MappingEndEvent, yaml.SequenceEndEvent)):
+                    outer.depth -= 1
+                    if outer.depth == 3 and outer.key is not None:
+                        # This is coming back down assigning a complex type to a policy
+                        # field.
+                        outer.key = None
+                    if outer.depth == 1:
+                        outer.capture = False
+                elif isinstance(event, yaml.ScalarEvent):
+                    if outer.depth == 1 and event.value == "policies":
+                        outer.capture = True
+                    if outer.depth == 3 and outer.capture:
+                        # We are looking at a policy definition.
+                        if outer.key is None:
+                            outer.key = event.value
+                        else:
+                            if outer.key == "name":
+                                policy = event.value
+                                if policy in outer.policies:
+                                    raise PolicyValidationError(
+                                        f"duplicate policy name '{policy}' "
+                                        f"found at line {outer.line} "
+                                        f"and {outer.policies[policy]}")
+                                outer.policies[policy] = outer.line
+                            outer.key = None
+                return event
+        return Wrapped
+
+
+def annotate_policies(mapping, filename, lines):
+    """Annotate the policies in the mapping with file and line numbers.
+
+    The metadata dict of the policy is updated to store the filename and line number.
+        {filename: 'example.yml', line: 42}
+
+    If the policy doesn't have a name, or that name isn't found in the lines
+    dict, no meta element is created.
+    """
+    for policy in mapping.get('policies', ()):
+        name = policy.get('name', "")
+        if name and name in lines:
+            meta = policy.get("metadata", {})
+            meta.update({'filename': filename, 'line': lines[name]})
+            policy["metadata"] = meta
