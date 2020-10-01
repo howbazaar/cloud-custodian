@@ -8,7 +8,6 @@ import json
 import itertools
 import logging
 import os
-import re
 import sys
 
 import yaml
@@ -16,6 +15,7 @@ from yaml.constructor import ConstructorError
 
 from c7n import deprecated
 from c7n.exceptions import ClientError, PolicyValidationError
+from c7n.loader import SourceLocator
 from c7n.provider import clouds
 from c7n.policy import Policy, PolicyCollection, load as policy_load
 from c7n.schema import ElementSchema, StructureParser, generate
@@ -237,7 +237,7 @@ def validate(options):
             ))
         used_policy_names = used_policy_names.union(conf_policy_names)
         source_locator = None
-        if fmt[0] == "y":
+        if fmt in ('yml', 'yaml'):
             # For yaml files there is at least the expectation that the policy
             # name is on a line by itself. With JSON, the file could be one big
             # line. At this stage we are only attempting to find line number for
@@ -256,7 +256,6 @@ def validate(options):
                         report = deprecated.report(policy)
                         if report:
                             found_deprecations = True
-                            # TODO: consider different formats for output.
                             log.warning("deprecated usage found in policy\n" +
                                         report.format(
                                             source_locator=source_locator,
@@ -281,30 +280,6 @@ def validate(options):
             sys.exit(1)
     if errors:
         sys.exit(1)
-
-
-class SourceLocator:
-    def __init__(self, filename):
-        self.filename = filename
-        self.policies = None
-
-    def find(self, name):
-        """Find returns the file and line number for the policy."""
-        if self.policies is None:
-            self.load_file()
-        line = self.policies.get(name, None)
-        if line is None:
-            return ""
-        return f"{self.filename}:{line}"
-
-    def load_file(self):
-        self.policies = {}
-        r = re.compile(r'^\s+- name: ([\w-]+)\s*$')
-        with open(self.filename) as f:
-            for i, line in enumerate(f, 1):
-                m = r.search(line)
-                if m:
-                    self.policies[m.group(1)] = i
 
 
 @policy_command
