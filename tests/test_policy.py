@@ -1,4 +1,3 @@
-# Copyright 2015-2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 from copy import deepcopy
@@ -214,6 +213,16 @@ class PolicyMetaLint(BaseTest):
 
         whitelist = set(('AwsS3Object', 'Container'))
         todo = set((
+            # newer wave q4 2020
+            'AwsApiGatewayRestApi',
+            'AwsApiGatewayStage',
+            'AwsApiGatewayV2Api',
+            'AwsApiGatewayV2Stage',
+            'AwsCertificateManagerCertificate',
+            'AwsCloudTrailTrail',
+            'AwsElbLoadBalancer',
+            'AwsIamGroup',
+            'AwsRedshiftCluster',
             # newer wave q3 2020
             'AwsDynamoDbTable',
             'AwsEc2Eip',
@@ -242,7 +251,6 @@ class PolicyMetaLint(BaseTest):
         # for several of these we express support as filter or action instead
         # of a resource.
         whitelist = {
-            'AWS::EC2::Host',
             'AWS::EC2::RegisteredHAInstance',
             'AWS::EC2::EgressOnlyInternetGateway',
             'AWS::EC2::VPCEndpointService',
@@ -277,7 +285,6 @@ class PolicyMetaLint(BaseTest):
             'AWS::ApiGatewayV2::Api',
             'AWS::ServiceCatalog::CloudFormationProvisionedProduct',
             'AWS::ServiceCatalog::CloudFormationProduct',
-            'AWS::ServiceCatalog::Portfolio',
             'AWS::SSM::FileData',
             'AWS::SecretsManager::Secret'}
 

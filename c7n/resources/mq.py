@@ -1,4 +1,3 @@
-# Copyright 2018 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 from c7n.actions import Action
@@ -7,7 +6,7 @@ from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter
 from c7n.manager import resources
 from c7n.query import QueryResourceManager, TypeInfo
 from c7n.utils import local_session, type_schema
-from c7n.tags import RemoveTag, Tag, TagDelayedAction, TagActionFilter
+from c7n.tags import RemoveTag, Tag, TagDelayedAction, TagActionFilter, universal_augment
 
 
 @resources.register('message-broker')
@@ -157,3 +156,19 @@ class MarkForOpMessageBroker(TagDelayedAction):
                     op: delete
                     days: 7
     """
+
+
+@resources.register('message-config')
+class MessageConfig(QueryResourceManager):
+
+    class resource_type(TypeInfo):
+        service = 'mq'
+        enum_spec = ('list_configurations', 'Configurations', None)
+        cfn_type = 'AWS::AmazonMQ::Configuration'
+        id = 'Id'
+        arn = 'Arn'
+        arn_type = 'configuration'
+        name = 'Name'
+        universal_taggable = object()
+
+    augment = universal_augment

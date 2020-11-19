@@ -1,4 +1,3 @@
-# Copyright 2016-2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import json
@@ -498,7 +497,10 @@ class IamRoleTest(BaseTest):
                 {'type': 'tag',
                  'tags': {'Env': 'Dev'}},
                 {'type': 'remove-tag',
-                 'tags': ['Application']}
+                 'tags': ['Application']},
+                {'type': 'mark-for-op',
+                 'op': 'delete',
+                 'days': 2}
             ]
         },
             session_factory=factory)
@@ -518,6 +520,9 @@ class IamRoleTest(BaseTest):
         self.assertNotIn(
             {'Application'},
             {t['Key'] for t in role['Tags']})
+        self.assertEqual(
+            {'maid_status': 'Resource does not meet policy: delete@2019/01/25'},
+            {t['Key']: t['Value'] for t in resources[0]['Tags'] if t['Key'] == 'maid_status'})
 
     def test_iam_role_set_boundary(self):
         factory = self.replay_flight_data('test_iam_role_set_boundary')
@@ -1040,10 +1045,13 @@ def test_iam_group_delete(test, iam_user_group):
         time.sleep(3)
 
     p = test.load_policy(pdata, session_factory=session_factory)
-    with pytest.raises(client.exceptions.DeleteConflictException):
+    with pytest.raises(ClientError) as ecm:
         p.push(event)
+    assert ecm.value.response[
+        'Error']['Code'] == 'DeleteConflict'
 
     pdata['actions'] = [{'type': 'delete', 'force': True}]
+
     p = test.load_policy(pdata, session_factory=session_factory)
     resources = p.push(event)
     assert len(resources) == 1
@@ -1819,6 +1827,23 @@ class SetRolePolicyAction(BaseTest):
 
         self.assertEqual(len(resources), 1)
         self.assertIn('test-role-us-east-1', resources[0]['RoleName'])
+
+
+class SAMLProviderTests(BaseTest):
+
+    def test_saml_provider(self):
+        factory = self.replay_flight_data('test_saml_provider')
+        p = self.load_policy({
+            'name': 'aws-saml',
+            'resource': 'aws.iam-saml-provider'},
+            session_factory=factory)
+
+        resources = p.run()
+        assert len(resources) == 1
+        self.assertJmes(
+            'IDPSSODescriptor.SingleSignOnService[0].Location',
+            resources[0],
+            'https://portal.sso.us-east-1.amazonaws.com/saml/assertion/MDMwNTk1ODQ3MDk5X2lucy')
 
 
 class DeleteRoleAction(BaseTest):

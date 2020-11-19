@@ -1,4 +1,3 @@
-# Copyright 2016-2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 from c7n.executor import MainThreadExecutor
@@ -15,6 +14,21 @@ class RDSClusterTest(BaseTest):
         # them with the extra API call. If those get re-recorded we can remove
         # this. -scotwk
         self.patch(RDSCluster, "augment", lambda x, y: y)
+
+    def test_net_location_invalid_subnet(self):
+        self.remove_augments()
+        session_factory = self.replay_flight_data("test_rdscluster_location_invalid_sub")
+        p = self.load_policy({
+            'name': 'rds',
+            'resource': 'aws.rds-cluster',
+            'filters': [
+                {'type': 'network-location',
+                 'key': 'tag:foobar',
+                 'match': 'equal',
+                 'compare': ['subnet']}]},
+            session_factory=session_factory)
+        resources = p.run()
+        self.assertEqual(len(resources), 0)
 
     def test_rdscluster_security_group(self):
         self.remove_augments()

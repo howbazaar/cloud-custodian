@@ -1,4 +1,3 @@
-# Copyright 2016-2019 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import logging
@@ -66,12 +65,20 @@ class SecurityGroupFilter(net_filters.SecurityGroupFilter):
 class SubnetFilter(net_filters.SubnetFilter):
 
     RelatedIdsExpression = ""
+    groups = None
 
     def get_permissions(self):
         return self.manager.get_resource_manager(
             'rds-subnet-group').get_permissions()
 
+    def get_subnet_groups(self):
+        return {
+            r['DBSubnetGroupName']: r for r in
+            self.manager.get_resource_manager('rds-subnet-group').resources()}
+
     def get_related_ids(self, resources):
+        if not self.groups:
+            self.groups = self.get_subnet_groups()
         group_ids = set()
         for r in resources:
             group_ids.update(
@@ -80,9 +87,8 @@ class SubnetFilter(net_filters.SubnetFilter):
         return group_ids
 
     def process(self, resources, event=None):
-        self.groups = {
-            r['DBSubnetGroupName']: r for r in
-            self.manager.get_resource_manager('rds-subnet-group').resources()}
+        if not self.groups:
+            self.groups = self.get_subnet_groups()
         return super(SubnetFilter, self).process(resources, event)
 
 

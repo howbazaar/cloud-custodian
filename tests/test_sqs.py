@@ -1,7 +1,6 @@
-# Copyright 2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
-from .common import BaseTest, functional
+from .common import BaseTest, functional, event_data
 from pytest_terraform import terraform
 from botocore.exceptions import ClientError
 
@@ -9,103 +8,128 @@ import json
 import pytest
 import time
 
-from c7n.resources.aws import shape_validate
+from c7n.resources.aws import shape_validate, Arn
 
 
-class TestSqs:
+def test_sqs_config_translate(test):
+    # we're using a cwe event as a config, so have to mangle to
+    # config's inane format (json strings in json)
+    event = event_data('sqs-discover.json')
+    p = test.load_policy({
+        'name': 'sqs-check',
+        'resource': 'aws.sqs',
+        'mode': {'type': 'config-rule'}})
+    config = p.resource_manager.get_source('config')
+    resource = config.load_resource(event['detail']['configurationItem'])
+    Arn.parse(resource['QueueArn']).resource == 'config-changes'
+    assert resource == {
+        'CreatedTimestamp': '1602023249',
+        'DelaySeconds': '0',
+        'LastModifiedTimestamp': '1602023249',
+        'MaximumMessageSize': '262144',
+        'MessageRetentionPeriod': '345600',
+        'Policy': '{"Version":"2012-10-17","Statement":[{"Sid":"","Effect":"Allow","Principal":{"Service":"events.amazonaws.com"},"Action":"sqs:SendMessage","Resource":"arn:aws:sqs:us-east-1:644160558196:config-changes"}]}', # noqa
+        'QueueArn': 'arn:aws:sqs:us-east-1:644160558196:config-changes',
+        'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/644160558196/config-changes',
+        'ReceiveMessageWaitTimeSeconds': '0',
+        'VisibilityTimeout': '30',
+    }
 
-    @terraform('sqs_delete', teardown=terraform.TEARDOWN_IGNORE)
-    def test_sqs_delete(self, test, sqs_delete):
-        session_factory = test.replay_flight_data("test_sqs_delete", region='us-east-2')
-        client = session_factory().client("sqs")
-        queue_arn = sqs_delete["aws_sqs_queue.test_sqs.arn"]
 
-        p = test.load_policy(
-            {
-                "name": "sqs-delete",
-                "resource": "sqs",
-                "filters": [{"QueueArn": queue_arn}],
-                "actions": [{"type": "delete"}],
-            },
-            config={'region': 'us-east-2'},
-            session_factory=session_factory,
-        )
+@terraform('sqs_delete', teardown=terraform.TEARDOWN_IGNORE)
+def test_sqs_delete(test, sqs_delete):
+    session_factory = test.replay_flight_data("test_sqs_delete", region='us-east-2')
+    client = session_factory().client("sqs")
+    queue_arn = sqs_delete["aws_sqs_queue.test_sqs.arn"]
 
-        if test.recording:
-            time.sleep(60)
+    p = test.load_policy(
+        {
+            "name": "sqs-delete",
+            "resource": "sqs",
+            "filters": [{"QueueArn": queue_arn}],
+            "actions": [{"type": "delete"}],
+        },
+        config={'region': 'us-east-2'},
+        session_factory=session_factory,
+    )
 
-        resources = p.run()
-        test.assertEqual(len(resources), 1)
+    if test.recording:
+        time.sleep(60)
 
-        queue_url = resources[0]['QueueUrl']
-        pytest.raises(ClientError, client.purge_queue, QueueUrl=queue_url)
+    resources = p.run()
+    test.assertEqual(len(resources), 1)
 
-        if test.recording:
-            time.sleep(2)
+    queue_url = resources[0]['QueueUrl']
+    pytest.raises(ClientError, client.purge_queue, QueueUrl=queue_url)
 
-    @terraform('sqs_set_encryption')
-    def test_sqs_set_encryption(self, test, sqs_set_encryption):
-        session_factory = test.replay_flight_data("test_sqs_set_encryption", region='us-west-2')
+    if test.recording:
+        time.sleep(2)
 
-        key_id = sqs_set_encryption["aws_kms_key.test_key.key_id"]
-        queue_arn = sqs_set_encryption["aws_sqs_queue.test_sqs.arn"]
-        alias_name = sqs_set_encryption["aws_kms_alias.test_key_alias.name"]
 
-        client = session_factory().client("sqs")
+@terraform('sqs_set_encryption')
+def test_sqs_set_encryption(test, sqs_set_encryption):
+    session_factory = test.replay_flight_data("test_sqs_set_encryption", region='us-west-2')
 
-        if test.recording:
-            time.sleep(30)
+    key_id = sqs_set_encryption["aws_kms_key.test_key.key_id"]
+    queue_arn = sqs_set_encryption["aws_sqs_queue.test_sqs.arn"]
+    alias_name = sqs_set_encryption["aws_kms_alias.test_key_alias.name"]
 
-        p = test.load_policy(
-            {
-                "name": "sqs-set-encryption",
-                "resource": "sqs",
-                "filters": [{"QueueArn": queue_arn}],
-                "actions": [{"type": "set-encryption", "key": alias_name.replace('alias/', '')}],
-            },
-            config={'region': 'us-west-2'},
-            session_factory=session_factory,
-        )
-        resources = p.run()
+    client = session_factory().client("sqs")
 
-        queue_url = resources[0]["QueueUrl"]
+    if test.recording:
+        time.sleep(30)
 
-        queue_attributes = client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["All"])
-        check_master_key = queue_attributes["Attributes"]["KmsMasterKeyId"]
-        test.assertEqual(check_master_key, key_id)
+    p = test.load_policy(
+        {
+            "name": "sqs-set-encryption",
+            "resource": "sqs",
+            "filters": [{"QueueArn": queue_arn}],
+            "actions": [{"type": "set-encryption", "key": alias_name.replace('alias/', '')}],
+        },
+        config={'region': 'us-west-2'},
+        session_factory=session_factory,
+    )
+    resources = p.run()
 
-    @terraform('sqs_remove_matched')
-    def test_sqs_remove_matched(self, test, sqs_remove_matched):
-        session_factory = test.replay_flight_data("test_sqs_remove_matched", region="us-east-2")
-        queue_arn = sqs_remove_matched['aws_sqs_queue.test_sqs.arn']
-        client = session_factory().client("sqs")
+    queue_url = resources[0]["QueueUrl"]
 
-        if test.recording:
-            time.sleep(60)
+    queue_attributes = client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["All"])
+    check_master_key = queue_attributes["Attributes"]["KmsMasterKeyId"]
+    test.assertEqual(check_master_key, key_id)
 
-        p = test.load_policy(
-            {
-                "name": "sqs-rm-matched",
-                "resource": "sqs",
-                "filters": [
-                    {"QueueArn": queue_arn},
-                    {"type": "cross-account", "everyone_only": True},
-                ],
-                "actions": [{"type": "remove-statements", "statement_ids": "matched"}],
-            },
-            config={'region': 'us-east-2'},
-            session_factory=session_factory,
-        )
-        resources = p.run()
 
-        queue_url = resources[0]["QueueUrl"]
-        queue_attributes = client.get_queue_attributes(
-            QueueUrl=queue_url,
-            AttributeNames=["Policy"]
-        )
-        data = json.loads(queue_attributes["Attributes"]["Policy"])
+@terraform('sqs_remove_matched')
+def test_sqs_remove_matched(test, sqs_remove_matched):
+    session_factory = test.replay_flight_data("test_sqs_remove_matched", region="us-east-2")
+    queue_arn = sqs_remove_matched['aws_sqs_queue.test_sqs.arn']
+    client = session_factory().client("sqs")
 
-        test.assertEqual([s["Sid"] for s in data.get("Statement", ())], ["SpecificAllow"])
+    if test.recording:
+        time.sleep(60)
+
+    p = test.load_policy(
+        {
+            "name": "sqs-rm-matched",
+            "resource": "sqs",
+            "filters": [
+                {"QueueArn": queue_arn},
+                {"type": "cross-account", "everyone_only": True},
+            ],
+            "actions": [{"type": "remove-statements", "statement_ids": "matched"}],
+        },
+        config={'region': 'us-east-2'},
+        session_factory=session_factory,
+    )
+    resources = p.run()
+
+    queue_url = resources[0]["QueueUrl"]
+    queue_attributes = client.get_queue_attributes(
+        QueueUrl=queue_url,
+        AttributeNames=["Policy"]
+    )
+    data = json.loads(queue_attributes["Attributes"]["Policy"])
+
+    test.assertEqual([s["Sid"] for s in data.get("Statement", ())], ["SpecificAllow"])
 
 
 class QueueTests(BaseTest):

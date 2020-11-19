@@ -1,4 +1,3 @@
-# Copyright 2015-2017 Capital One Services, LLC
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -75,15 +74,6 @@ class DescribeRDS(DescribeSource):
             self.manager, super(DescribeRDS, self).augment(dbs))
 
 
-class ConfigRDS(ConfigSource):
-
-    def load_resource(self, item):
-        resource = super(ConfigRDS, self).load_resource(item)
-        resource['Tags'] = [{u'Key': t['key'], u'Value': t['value']}
-          for t in item['supplementaryConfiguration']['Tags']]
-        return resource
-
-
 @resources.register('rds')
 class RDS(QueryResourceManager):
     """Resource manager for RDS DB instances.
@@ -121,7 +111,7 @@ class RDS(QueryResourceManager):
 
     source_mapping = {
         'describe': DescribeRDS,
-        'config': ConfigRDS
+        'config': ConfigSource
     }
 
 
@@ -970,16 +960,6 @@ class DescribeRDSSnapshot(DescribeSource):
             self.manager, super(DescribeRDSSnapshot, self).augment(snaps))
 
 
-class ConfigRDSSnapshot(ConfigSource):
-
-    def load_resource(self, item):
-        resource = super(ConfigRDSSnapshot, self).load_resource(item)
-        resource['Tags'] = [{u'Key': t['key'], u'Value': t['value']}
-          for t in item['supplementaryConfiguration']['Tags']]
-        # TODO: Load DBSnapshotAttributes into annotation
-        return resource
-
-
 @resources.register('rds-snapshot')
 class RDSSnapshot(QueryResourceManager):
     """Resource manager for RDS DB snapshots.
@@ -999,7 +979,7 @@ class RDSSnapshot(QueryResourceManager):
 
     source_mapping = {
         'describe': DescribeRDSSnapshot,
-        'config': ConfigRDSSnapshot
+        'config': ConfigSource
     }
 
 
