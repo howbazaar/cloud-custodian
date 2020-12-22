@@ -5,6 +5,7 @@ import json
 import subprocess
 import os
 import yaml
+import logging
 
 import pytest
 
@@ -84,6 +85,10 @@ class GitRepo:
 
 @pytest.mark.skipif(pygit2 is None, reason="pygit2 not installed")
 class StreamTest(TestUtils):
+
+    def setUp(self):
+        self.maxDiff = None
+        logging.getLogger("").setLevel(logging.DEBUG)
 
     def setup_basic_repo(self):
         git = GitRepo(self.get_temp_dir())
@@ -187,3 +192,50 @@ class StreamTest(TestUtils):
             rows[-1]['policy'],
             {'data': {'name': 'lambda-check', 'resource': 'aws.lambda'},
              'file': 'example.yml'})
+
+    def test_stream_remove_file(self):
+        git = self.setup_basic_repo()
+        git.rm('example.yml')
+        git.commit('remove file')
+
+        policy_repo = policystream.PolicyRepo(git.repo_path, git.repo())
+        changes = [c.data() for c in policy_repo.delta_stream(
+            sort=pygit2.GIT_SORT_TOPOLOGICAL | pygit2.GIT_SORT_REVERSE)]
+        self.assertEqual(
+            [(c['change'],
+              c['policy']['data']['name'],
+              c['commit']['message'].strip()) for c in changes],
+            [('add', 'codebuild-check', 'add something'),
+             ('remove', 'codebuild-check', 'switch'),
+             ('add', 'lambda-check', 'switch'),
+             ('remove', 'lambda-check', 'remove file')])
+
+    def test_stream_move_policy(self):
+        git = self.setup_basic_repo()
+        git.change('newfile.yml', {
+            'policies': [{
+                'name': 'ec2-check',
+                'resource': 'aws.ec2'}]})
+        git.commit('new file')
+        git.rm('example.yml')
+        git.change('newfile.yml', {
+            'policies': [{
+                'name': 'ec2-check',
+                'resource': 'aws.ec2',
+            }, {
+                'name': 'lambda-check',
+                'resource': 'aws.lambda'}]})
+        git.commit('move policy')
+
+        policy_repo = policystream.PolicyRepo(git.repo_path, git.repo())
+        changes = [c.data() for c in policy_repo.delta_stream(
+            sort=pygit2.GIT_SORT_TOPOLOGICAL | pygit2.GIT_SORT_REVERSE)]
+        self.assertEqual(
+            [(c['change'],
+              c['policy']['data']['name'],
+              c['commit']['message'].strip()) for c in changes],
+            [('add', 'codebuild-check', 'add something'),
+             ('remove', 'codebuild-check', 'switch'),
+             ('add', 'lambda-check', 'switch'),
+             ('add', 'ec2-check', 'new file'),
+             ('moved', 'lambda-check', 'move policy')])
