@@ -36,14 +36,15 @@ def load(options, path, format=None, validate=True, vars=None):
 
     structure = StructureParser()
     structure.validate(data)
-    load_resources(structure.get_resource_types(data))
+    rtypes = structure.get_resource_types(data)
+    load_resources(rtypes)
 
     if isinstance(data, list):
         log.warning('yaml in invalid format. The "policies:" line is probably missing.')
         return None
 
     if validate:
-        errors = validate(data)
+        errors = validate(data, resource_types=rtypes)
         if errors:
             raise PolicyValidationError(
                 "Failed to validate policy %s \n %s" % (
@@ -768,11 +769,19 @@ class ConfigPollRuleMode(LambdaMode, PullMode):
         return utils.local_session(
             self.policy.session_factory).client('config')
 
+    def put_evaluations(self, client, token, evaluations):
+        for eval_set in utils.chunks(evaluations, 100):
+            self.policy.resource_manager.retry(
+                client.put_evaluations,
+                Evaluations=eval_set,
+                ResultToken=token)
+
     def run(self, event, lambda_context):
         cfg_event = json.loads(event['invokingEvent'])
         resource_type = self.policy.resource_manager.resource_type.cfn_type
         resource_id = self.policy.resource_manager.resource_type.id
         client = self._get_client()
+        token = event.get('resultToken')
 
         matched_resources = set()
         for r in PullMode.run(self):
@@ -791,11 +800,8 @@ class ConfigPollRuleMode(LambdaMode, PullMode):
             Annotation='The resource is not compliant with policy:%s.' % (
                 self.policy.name))
             for r in matched_resources]
-        if evaluations:
-            self.policy.resource_manager.retry(
-                client.put_evaluations,
-                Evaluations=evaluations,
-                ResultToken=event.get('resultToken', 'No token found.'))
+        if evaluations and token:
+            self.put_evaluations(client, token, evaluations)
 
         evaluations = [dict(
             ComplianceResourceType=resource_type,
@@ -805,11 +811,8 @@ class ConfigPollRuleMode(LambdaMode, PullMode):
             Annotation='The resource is compliant with policy:%s.' % (
                 self.policy.name))
             for r in unmatched_resources]
-        if evaluations:
-            self.policy.resource_manager.retry(
-                client.put_evaluations,
-                Evaluations=evaluations,
-                ResultToken=event.get('resultToken', 'No token found.'))
+        if evaluations and token:
+            self.put_evaluations(client, token, evaluations)
         return list(matched_resources)
 
 
@@ -1095,9 +1098,9 @@ class Policy:
         if not variables:
             variables = {}
 
+        partition = utils.get_partition(self.options.region)
         if 'mode' in self.data:
             if 'role' in self.data['mode'] and not self.data['mode']['role'].startswith("arn:aws"):
-                partition = utils.get_partition(self.options.region)
                 self.data['mode']['role'] = "arn:%s:iam::%s:role/%s" % \
                     (partition, self.options.account_id, self.data['mode']['role'])
 
@@ -1105,6 +1108,7 @@ class Policy:
             # standard runtime variables for interpolation
             'account': '{account}',
             'account_id': self.options.account_id,
+            'partition': partition,
             'region': self.options.region,
             # non-standard runtime variables from local filter/action vocabularies
             #
@@ -1122,6 +1126,7 @@ class Policy:
             'bucket_region': '{bucket_region}',
             'bucket_name': '{bucket_name}',
             'source_bucket_name': '{source_bucket_name}',
+            'source_bucket_region': '{source_bucket_region}',
             'target_bucket_name': '{target_bucket_name}',
             'target_prefix': '{target_prefix}',
             'LoadBalancerName': '{LoadBalancerName}'

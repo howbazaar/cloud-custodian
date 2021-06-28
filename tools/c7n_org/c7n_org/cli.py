@@ -8,7 +8,7 @@ from collections import Counter
 import logging
 import os
 import time
-import subprocess
+import subprocess  # nosec
 import sys
 
 import multiprocessing
@@ -83,6 +83,7 @@ CONFIG_SCHEMA = {
             'required': ['subscription_id'],
             'properties': {
                 'subscription_id': {'type': 'string'},
+                'region': {'type': 'string'},
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'name': {'type': 'string'},
                 'vars': {'type': 'object'},
@@ -163,6 +164,11 @@ def init(config, use, debug, verbose, accounts, tags, policies, resource=None, p
     logging.getLogger('custodian.s3').setLevel(logging.ERROR)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
+    accounts = comma_expand(accounts)
+    policies = comma_expand(policies)
+    tags = comma_expand(tags)
+    policy_tags = comma_expand(policy_tags)
+
     # Filter out custodian log messages on console output if not
     # at warning level or higher, see LogFilter docs and #2674
     for h in logging.getLogger().handlers:
@@ -196,7 +202,21 @@ def resolve_regions(regions, account):
         return [region['RegionName'] for region in client.describe_regions()['Regions']]
     if not regions:
         return ('us-east-1', 'us-west-2')
-    return regions
+
+    return comma_expand(regions)
+
+
+def comma_expand(values):
+    resolved_values = []
+    if not values:
+        return []
+    for v in values:
+        if ',' in v:
+            resolved_values.extend([n.strip() for n in v.split(',')])
+        elif v:
+            resolved_values.append(v)
+    # unique the set
+    return list(dict.fromkeys(resolved_values))
 
 
 def get_session(account, session_name, region):
@@ -228,6 +248,8 @@ def get_session(account, session_name, region):
 
 def filter_accounts(accounts_config, tags, accounts, not_accounts=None):
     filtered_accounts = []
+    accounts = comma_expand(accounts)
+    not_accounts = comma_expand(not_accounts)
     for a in accounts_config.get('accounts', ()):
         if not_accounts and a['name'] in not_accounts:
             continue
@@ -383,7 +405,7 @@ def report(config, output, use, output_dir, accounts,
         fields=prefix_fields)
 
     rows = formatter.to_csv(records, unique=False)
-    writer = csv.writer(output, formatter.headers())
+    writer = csv.writer(output, formatter.headers(), quoting=csv.QUOTE_ALL)
     writer.writerow(formatter.headers())
     writer.writerows(rows)
 
@@ -419,7 +441,7 @@ def run_account_script(account, region, output_dir, debug, script_args):
              account['name'], region, " ".join(script_args))
 
     if debug:
-        subprocess.check_call(args=script_args, env=env)
+        subprocess.check_call(args=script_args, env=env)  # nosec
         return 0
 
     output_dir = os.path.join(output_dir, account['name'], region)
@@ -428,7 +450,7 @@ def run_account_script(account, region, output_dir, debug, script_args):
 
     with open(os.path.join(output_dir, 'stdout'), 'wb') as stdout:
         with open(os.path.join(output_dir, 'stderr'), 'wb') as stderr:
-            return subprocess.call(
+            return subprocess.call(  # nosec
                 args=script_args, env=env, stdout=stdout, stderr=stderr)
 
 
@@ -497,7 +519,7 @@ def accounts_iterator(config):
     for a in config.get('subscriptions', ()):
         d = {'account_id': a['subscription_id'],
              'name': a.get('name', a['subscription_id']),
-             'regions': ['global'],
+             'regions': [a.get('region', 'global')],
              'provider': 'azure',
              'tags': a.get('tags', ()),
              'vars': a.get('vars', {})}
