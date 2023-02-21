@@ -259,6 +259,11 @@ class TestElastiCacheSubnetGroup(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
+        self.assertEqual(
+            p.resource_manager.get_arns(resources),
+            # unsure on the region and account the tests runs with.
+            ["arn:aws:elasticache:us-east-2:644160558196:subnetgroup:default"]
+        )
 
 class TestElastiCacheSnapshot(BaseTest):
 
