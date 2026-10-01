@@ -43,6 +43,9 @@ class TestKube(KubeTest):
             {"name": "deployments", "resource": "k8s.deployment"}, config=pod.options
         )
         for p, kind in ((pod, "Pod"), (deployment, "Deployment")):
+            # Close each cache connection before the temp dir is removed, as
+            # windows won't delete a file that is still open.
+            self.addCleanup(p.resource_manager._cache.close)
             self.patch(
                 p.resource_manager.source,
                 "get_resources",
