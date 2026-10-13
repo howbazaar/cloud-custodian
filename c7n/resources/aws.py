@@ -3,7 +3,7 @@
 
 from c7n.provider import clouds, Provider
 
-from collections import Counter, namedtuple
+from collections import namedtuple
 import contextlib
 import copy
 import datetime
@@ -45,7 +45,7 @@ from c7n.output import (
 # Output base implementations we extend.
 from c7n.output import (
     Metrics,
-    DeltaStats,
+    APICallStats,
     BlobOutput,
     LogOutput,
 )
@@ -663,22 +663,12 @@ class XrayTracer:
 
 
 @api_stats_outputs.register('aws')
-class ApiStats(DeltaStats):
-
-    def __init__(self, ctx, config=None):
-        super(ApiStats, self).__init__(ctx, config)
-        self.api_calls = Counter()
-
-    def get_snapshot(self):
-        return dict(self.api_calls)
-
-    def get_metadata(self):
-        return self.get_snapshot()
+class ApiStats(APICallStats):
 
     def __enter__(self):
         if isinstance(self.ctx.session_factory, credentials.SessionFactory):
             self.ctx.session_factory.set_subscribers((self,))
-        self.push_snapshot()
+        super().__enter__()
 
     def __exit__(self, exc_type=None, exc_value=None, exc_traceback=None):
         if isinstance(self.ctx.session_factory, credentials.SessionFactory):
@@ -686,20 +676,25 @@ class ApiStats(DeltaStats):
 
         # With cached sessions, we need to unregister any events subscribers
         # on extant sessions to allow for the next registration.
-        utils.local_session(self.ctx.session_factory).events.unregister(
-            'after-call.*.*', self._record, unique_id='c7n-api-stats')
-
-        self.ctx.metrics.put_metric(
-            "ApiCalls", sum(self.api_calls.values()), "Count")
-        self.pop_snapshot()
+        events = utils.local_session(self.ctx.session_factory).events
+        events.unregister('before-call.*.*', self._start, unique_id='c7n-api-stats-start')
+        events.unregister('after-call.*.*', self._record, unique_id='c7n-api-stats')
+        super().__exit__(exc_type, exc_value, exc_traceback)
 
     def __call__(self, s):
-        s.events.register(
-            'after-call.*.*', self._record, unique_id='c7n-api-stats')
+        s.events.register('before-call.*.*', self._start, unique_id='c7n-api-stats-start')
+        s.events.register('after-call.*.*', self._record, unique_id='c7n-api-stats')
 
-    def _record(self, http_response, parsed, model, **kwargs):
-        self.api_calls["%s.%s" % (
-            model.service_model.endpoint_prefix, model.name)] += 1
+    def _start(self, context, **kwargs):
+        # The request context is shared by an operation's before-call and
+        # after-call events, so carries its start time between them.
+        context['c7n_api_stats_start'] = time.perf_counter()
+
+    def _record(self, http_response, parsed, model, context=None, **kwargs):
+        start = (context or {}).get('c7n_api_stats_start')
+        self.record(
+            "%s.%s" % (model.service_model.endpoint_prefix, model.name),
+            time.perf_counter() - start if start is not None else 0.0)
 
 
 @blob_outputs.register('s3')

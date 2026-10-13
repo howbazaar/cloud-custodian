@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 from common_kube import KubeTest
 
+from c7n import output
 from c7n.output import LogMetrics
-from c7n_kube import client as kube_client
 from c7n_kube.client import APIStats, InstrumentedAPI
 
 
@@ -36,7 +36,7 @@ class TestAPIStats(KubeTest):
         self.assertEqual(by_name["ApiCalls"]["Unit"], "Count")
         self.assertEqual(by_name["ApiTime"]["Unit"], "Seconds")
         self.assertGreater(by_name["ApiTime"]["Value"], 0)
-        self.assertEqual(kube_client._subscribers, [])
+        self.assertEqual(output._api_call_recorders, [])
 
     def test_records_failed_calls(self):
         api = MagicMock()
