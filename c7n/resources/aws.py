@@ -677,24 +677,45 @@ class ApiStats(APICallStats):
         # With cached sessions, we need to unregister any events subscribers
         # on extant sessions to allow for the next registration.
         events = utils.local_session(self.ctx.session_factory).events
-        events.unregister('before-call.*.*', self._start, unique_id='c7n-api-stats-start')
-        events.unregister('after-call.*.*', self._record, unique_id='c7n-api-stats')
+        for event, handler, unique_id in self._handlers():
+            events.unregister(event, handler, unique_id=unique_id)
         super().__exit__(exc_type, exc_value, exc_traceback)
 
     def __call__(self, s):
-        s.events.register('before-call.*.*', self._start, unique_id='c7n-api-stats-start')
-        s.events.register('after-call.*.*', self._record, unique_id='c7n-api-stats')
+        for event, handler, unique_id in self._handlers():
+            s.events.register(event, handler, unique_id=unique_id)
 
-    def _start(self, context, **kwargs):
-        # The request context is shared by an operation's before-call and
-        # after-call events, so carries its start time between them.
-        context['c7n_api_stats_start'] = time.perf_counter()
+    def _handlers(self):
+        return (
+            ('before-call.*.*', self._start, 'c7n-api-stats-start'),
+            ('after-call.*.*', self._record, 'c7n-api-stats'),
+            ('after-call-error.*.*', self._record_error, 'c7n-api-stats-error'),
+        )
+
+    @staticmethod
+    def _call_name(model):
+        return "%s.%s" % (model.service_model.endpoint_prefix, model.name)
+
+    def _start(self, model, context, **kwargs):
+        # The request context is shared by an operation's before-call event and
+        # its after-call or after-call-error event, so carries the call's name
+        # and start time between them.
+        context['c7n_api_stats'] = (self._call_name(model), time.perf_counter())
 
     def _record(self, http_response, parsed, model, context=None, **kwargs):
-        start = (context or {}).get('c7n_api_stats_start')
-        self.record(
-            "%s.%s" % (model.service_model.endpoint_prefix, model.name),
-            time.perf_counter() - start if start is not None else 0.0)
+        name, start = (context or {}).get('c7n_api_stats', (self._call_name(model), None))
+        self._finish(name, start)
+
+    def _record_error(self, exception, context=None, **kwargs):
+        # Emitted when the request fails in transport, e.g. a connection
+        # error, with no operation model, so only calls seen by before-call
+        # can be recorded.
+        call = (context or {}).get('c7n_api_stats')
+        if call:
+            self._finish(*call)
+
+    def _finish(self, name, start):
+        self.record(name, time.perf_counter() - start if start is not None else 0.0)
 
 
 @blob_outputs.register('s3')

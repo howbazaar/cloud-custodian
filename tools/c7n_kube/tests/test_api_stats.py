@@ -35,7 +35,8 @@ class TestAPIStats(KubeTest):
         self.assertEqual(by_name["ApiCalls"]["Value"], 3)
         self.assertEqual(by_name["ApiCalls"]["Unit"], "Count")
         self.assertEqual(by_name["ApiTime"]["Unit"], "Seconds")
-        self.assertGreater(by_name["ApiTime"]["Value"], 0)
+        self.assertGreater(p.ctx.api_stats.api_time, 0)
+        self.assertEqual(by_name["ApiTime"]["Value"], round(p.ctx.api_stats.api_time, 3))
         self.assertEqual(output._api_call_recorders, [])
 
     def test_records_failed_calls(self):

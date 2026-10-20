@@ -27,7 +27,7 @@ from aws_xray_sdk.core.models.subsegment import Subsegment
 import boto3
 import pytest
 import vcr
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 from botocore.stub import Stubber
 
 
@@ -389,6 +389,22 @@ class ApiStatsTest(BaseTest):
             stats.get_metadata(), {'sqs.ListQueues': 2, 'sqs.GetQueueUrl': 1})
         self.assertGreater(stats.api_time, 0)
 
+    def test_records_transport_errors(self):
+        stats = aws.ApiStats(Bag(), Config.empty())
+        session = boto3.Session(region_name='us-east-1')
+        stats(session)
+        client = session.client(
+            'sqs', region_name='us-east-1',
+            aws_access_key_id='AKID', aws_secret_access_key='SECRET')
+        error = EndpointConnectionError(endpoint_url='https://sqs.us-east-1.amazonaws.com')
+
+        with patch.object(client._endpoint, 'make_request', side_effect=error):
+            with self.assertRaises(EndpointConnectionError):
+                client.list_queues()
+
+        self.assertEqual(stats.get_metadata(), {'sqs.ListQueues': 1})
+        self.assertGreater(stats.api_time, 0)
+
     def test_execution_emits_metrics(self):
         utils.reset_session_cache()
         self.addCleanup(utils.reset_session_cache)
@@ -413,7 +429,8 @@ class ApiStatsTest(BaseTest):
         calls = {c.args[0]: c.args[1:] for c in metrics.put_metric.call_args_list}
         self.assertEqual(calls['ApiCalls'], (1, 'Count'))
         self.assertEqual(calls['ApiTime'][1], 'Seconds')
-        self.assertGreater(calls['ApiTime'][0], 0)
+        self.assertGreater(stats.api_time, 0)
+        self.assertEqual(calls['ApiTime'][0], round(stats.api_time, 3))
 
 
 class OutputLogsTest(BaseTest):

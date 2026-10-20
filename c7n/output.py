@@ -224,7 +224,7 @@ class APICallStats(DeltaStats):
     def __exit__(self, exc_type=None, exc_value=None, exc_traceback=None):
         _api_call_recorders.remove(self)
         self.ctx.metrics.put_metric("ApiCalls", sum(self.api_calls.values()), "Count")
-        self.ctx.metrics.put_metric("ApiTime", self.api_time, "Seconds")
+        self.ctx.metrics.put_metric("ApiTime", round(self.api_time, 3), "Seconds")
         self.pop_snapshot()
 
 
