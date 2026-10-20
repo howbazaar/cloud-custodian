@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
 import time
 import uuid
 
@@ -202,6 +203,8 @@ class APICallStats(DeltaStats):
         super().__init__(ctx, config)
         self.api_calls = Counter()
         self.api_time = 0.0
+        # Calls are recorded from the thread pools filters and actions use.
+        self.lock = threading.Lock()
 
     def get_snapshot(self):
         return dict(self.api_calls)
@@ -210,8 +213,9 @@ class APICallStats(DeltaStats):
         return self.get_snapshot()
 
     def record(self, name, elapsed):
-        self.api_calls[name] += 1
-        self.api_time += elapsed
+        with self.lock:
+            self.api_calls[name] += 1
+            self.api_time += elapsed
 
     def __enter__(self):
         _api_call_recorders.append(self)

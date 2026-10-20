@@ -390,15 +390,22 @@ class ApiStatsTest(BaseTest):
         self.assertGreater(stats.api_time, 0)
 
     def test_execution_emits_metrics(self):
+        utils.reset_session_cache()
         self.addCleanup(utils.reset_session_cache)
         factory = credentials.SessionFactory('us-east-1')
         metrics = Mock()
         stats = aws.ApiStats(Bag(session_factory=factory, metrics=metrics), Config.empty())
 
         with stats:
-            client, stubber = self.stubbed_sqs(factory())
+            client, stubber = self.stubbed_sqs(utils.local_session(factory))
             stubber.add_response('list_queues', {})
             client.list_queues()
+
+        # A client keeps a copy of its session's event handlers, so check
+        # cleanup with one created from the cached session after the execution.
+        client, stubber = self.stubbed_sqs(utils.local_session(factory))
+        stubber.add_response('list_queues', {})
+        client.list_queues()
 
         self.assertEqual(stats.get_metadata(), {'sqs.ListQueues': 1})
         self.assertEqual(factory._subscribers, ())
